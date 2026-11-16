@@ -689,6 +689,17 @@ fn local_rclone_locations(app_handle: &AppHandle) -> Result<(Option<PathBuf>, Pa
         .ok()
         .map(PathBuf::from)
         .unwrap_or_default();
+    #[cfg(feature = "portable")]
+    let configured = if !matches!(configured.to_string_lossy().as_ref(), "" | "system") {
+        crate::services::portable::resolve_path(
+            &crate::services::paths::AppPaths::from_app_handle(app_handle)
+                .map_err(Error::Backend)?
+                .resource_dir,
+            &configured,
+        )
+    } else {
+        configured
+    };
     let beside_configured = (!matches!(configured.to_string_lossy().as_ref(), "" | "system"))
         .then(|| {
             if configured.is_dir() {

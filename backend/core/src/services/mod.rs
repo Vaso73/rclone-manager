@@ -8,6 +8,8 @@ pub mod flow;
 pub mod initialization;
 pub mod lifecycle;
 pub mod paths;
+#[cfg(feature = "portable")]
+pub mod portable;
 pub mod security;
 pub mod settings;
 

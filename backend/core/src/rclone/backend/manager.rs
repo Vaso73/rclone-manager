@@ -564,11 +564,31 @@ impl BackendManager {
             saved_names.insert(key.clone());
 
             if let Ok(value) = connections.get_value(&key)
-                && let Ok(mut backend) = serde_json::from_value::<Backend>(value)
+                && let Ok(mut backend) = serde_json::from_value::<Backend>(value.clone())
             {
                 backend.name = key.clone();
 
                 if Backend::is_local_name(&backend.name) {
+                    #[cfg(feature = "portable")]
+                    {
+                        if let Some(path) = backend.config_path.as_deref() {
+                            let stored = crate::services::portable::stored_path(
+                                crate::services::portable::root(manager),
+                                path,
+                            );
+                            if stored != path {
+                                let mut value = value.clone();
+                                value["config_path"] = serde_json::json!(stored);
+                                connections.set(&key, &value).map_err(|error| {
+                                    crate::localized_error!("backendErrors.settings.saveFailed", "error" => error)
+                                })?;
+                            }
+                        }
+                        backend.config_path = Some(crate::services::portable::config_path(
+                            manager,
+                            backend.config_path.as_deref(),
+                        ));
+                    }
                     // Generated RC credentials are never saved, but the running
                     // engine still requires them after a reload or restore.
                     if !backend.has_valid_auth()
@@ -595,6 +615,15 @@ impl BackendManager {
                     log::warn!("Skipping saved backend '{key}': {error}");
                 }
             }
+        }
+
+        #[cfg(feature = "portable")]
+        if let Some(mut local) = self.get(LOCAL_BACKEND_NAME).await {
+            local.config_path = Some(crate::services::portable::config_path(
+                manager,
+                local.config_path.as_deref(),
+            ));
+            self.update(LOCAL_BACKEND_NAME, local).await?;
         }
 
         let target_backend = active_name.unwrap_or_else(|| {

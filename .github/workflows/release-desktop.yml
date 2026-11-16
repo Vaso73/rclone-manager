@@ -58,6 +58,10 @@ jobs:
         shell: bash
         run: npm run tauri build -- --features portable --target x86_64-pc-windows-msvc --no-bundle --config "$RUNNER_TEMP/no-updater.json"
 
+      - name: Test portable path resolution on Windows
+        shell: bash
+        run: cargo test --manifest-path backend/Cargo.toml -p rclone-manager-core --features desktop,portable --target x86_64-pc-windows-msvc --lib services::portable -- --test-threads=1
+
       - name: Package portable ZIP
         shell: pwsh
         run: |

@@ -1,6 +1,7 @@
-fn apply_platform_config(
-    builder: tauri::WebviewWindowBuilder<'_, tauri::Wry, tauri::AppHandle>,
-) -> tauri::WebviewWindowBuilder<'_, tauri::Wry, tauri::AppHandle> {
+fn apply_platform_config<'a>(
+    builder: tauri::WebviewWindowBuilder<'a, tauri::Wry, tauri::AppHandle>,
+    _app: &tauri::AppHandle,
+) -> tauri::WebviewWindowBuilder<'a, tauri::Wry, tauri::AppHandle> {
     let b = builder
         .inner_size(800.0, 630.0)
         .resizable(true)
@@ -14,6 +15,13 @@ fn apply_platform_config(
 
     #[cfg(target_os = "windows")]
     let b = b.scroll_bar_style(tauri::webview::ScrollBarStyle::FluentOverlay);
+
+    #[cfg(all(feature = "portable", target_os = "windows"))]
+    let b = {
+        use crate::context::BackendContext;
+        let paths = _app.backend().state::<crate::services::paths::AppPaths>();
+        b.data_directory(paths.cache_dir.join("webview"))
+    };
 
     #[cfg(not(target_os = "macos"))]
     let b = b.decorations(false).transparent(true);
@@ -44,7 +52,7 @@ pub fn create_app_window(app_handle: &tauri::AppHandle) -> tauri::Result<()> {
         tauri::WebviewWindowBuilder::new(app_handle, "main", tauri::WebviewUrl::default())
             .title(crate::app::PRODUCT.display_name);
 
-    let window = apply_platform_config(builder).build()?;
+    let window = apply_platform_config(builder, app_handle).build()?;
     focus_window(&window);
 
     #[cfg(target_os = "macos")]
@@ -135,7 +143,7 @@ pub async fn new_window(app_handle: tauri::AppHandle, opts: WindowOptions) -> bo
 
     // The platform defaults come first: the builder keeps the last size it is given, and
     // they would otherwise override the size the caller asked for.
-    match apply_platform_config(builder)
+    match apply_platform_config(builder, &app_handle)
         .inner_size(w, h)
         .min_inner_size(360.0, 240.0)
         .build()

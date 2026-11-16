@@ -26,6 +26,13 @@ fn resolve_rclone_binary(app: &AppHandle, override_path: Option<&std::path::Path
     if let Some(path) = override_path
         .filter(|p| !p.to_string_lossy().is_empty() && *p != std::path::Path::new("system"))
     {
+        #[cfg(feature = "portable")]
+        let portable_path = crate::services::portable::resolve_path(
+            &app.state::<crate::services::paths::AppPaths>().resource_dir,
+            path,
+        );
+        #[cfg(feature = "portable")]
+        let path = portable_path.as_path();
         return resolve_path(path);
     }
 
@@ -116,6 +123,14 @@ pub fn build_rclone_command(
     let binary_path = resolve_rclone_binary(app, bin_override.map(std::path::Path::new));
     let mut cmd = crate::utils::process::command::command(binary_path);
 
+    #[cfg(feature = "portable")]
+    crate::services::portable::configure_command(
+        &mut cmd,
+        &app.state::<crate::services::paths::AppPaths>(),
+        config_override,
+    );
+
+    #[cfg(not(feature = "portable"))]
     if let Some(cfg) = config_override.filter(|c| !c.to_string_lossy().is_empty()) {
         cmd.arg("--config").arg(cfg);
     }
@@ -128,7 +143,7 @@ pub fn build_rclone_command(
 
 /// Read the configured rclone binary path.
 ///
-/// `core.rclone_binary` stores the **full path to the rclone binary file**.
+/// `core.rclone_binary` identifies the binary file. Portable builds resolve installation-relative paths.
 /// The special value `"system"` means: search the system PATH.
 pub fn read_rclone_binary(app: &AppHandle) -> PathBuf {
     let configured: PathBuf = app
@@ -139,9 +154,28 @@ pub fn read_rclone_binary(app: &AppHandle) -> PathBuf {
                 .ok()
                 .map(PathBuf::from)
         })
-        .unwrap_or_else(|| PathBuf::from("system"));
+        .unwrap_or_else(|| {
+            #[cfg(feature = "portable")]
+            {
+                PathBuf::new()
+            }
+            #[cfg(not(feature = "portable"))]
+            PathBuf::from("system")
+        });
 
     debug!("Configured rclone binary: {}", configured.to_string_lossy());
+
+    #[cfg(feature = "portable")]
+    let configured = {
+        let paths = app.state::<crate::services::paths::AppPaths>();
+        if configured.as_os_str().is_empty() {
+            paths.config_dir.join(RCLONE_EXECUTABLE)
+        } else if configured != std::path::Path::new("system") {
+            crate::services::portable::resolve_path(&paths.resource_dir, &configured)
+        } else {
+            configured
+        }
+    };
 
     let configured =
         if configured.to_string_lossy() != "system" && !configured.to_string_lossy().is_empty() {
@@ -150,6 +184,12 @@ pub fn read_rclone_binary(app: &AppHandle) -> PathBuf {
             configured
         };
 
+    #[cfg(feature = "portable")]
+    if configured != std::path::Path::new("system") {
+        return configured;
+    }
+
+    #[cfg(not(feature = "portable"))]
     if configured.to_string_lossy() != "system" && configured.is_file() {
         return configured;
     }

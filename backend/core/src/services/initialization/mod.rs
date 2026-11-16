@@ -153,6 +153,9 @@ pub async fn refresh_system(app_handle: AppHandle) -> Result<(), String> {
     manager.invalidate_cache();
     let settings = manager.get_all().map_err(|e| e.to_string())?;
 
+    #[cfg(feature = "portable")]
+    crate::services::portable::prepare_settings(manager.inner())?;
+
     let backend_manager = app_handle.state::<BackendManager>();
     #[cfg(not(feature = "librclone"))]
     let running_local = backend_manager.get(LOCAL_BACKEND_NAME).await;
@@ -316,6 +319,9 @@ async fn async_core_setup(app_handle: &AppHandle) -> Result<(), String> {
     let settings = rcman_manager
         .get_all()
         .map_err(|e| format!("Failed to load settings during Phase 0: {e}"))?;
+
+    #[cfg(feature = "portable")]
+    crate::services::portable::prepare_settings(rcman_manager.inner())?;
 
     rclone_env::load_stored_config_password(rcman_manager.inner());
     crate::utils::i18n::init();

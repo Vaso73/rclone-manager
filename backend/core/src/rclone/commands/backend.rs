@@ -269,6 +269,18 @@ pub async fn update_backend(app: AppHandle, params: UpdateBackendParams) -> Resu
         },
         config_path: params.config_path,
     };
+    #[cfg(feature = "portable")]
+    let backend = if backend.is_local {
+        Backend {
+            config_path: Some(crate::services::portable::config_path(
+                settings_manager.inner(),
+                backend.config_path.as_deref(),
+            )),
+            ..backend
+        }
+    } else {
+        backend
+    };
 
     let creds_changed =
         existing.username != backend.username || existing.password != backend.password;
@@ -453,6 +465,12 @@ fn save_backend_to_settings(manager: &AppSettingsManager, backend: &Backend) -> 
         .map_err(|e| e.to_string())?;
 
     let mut backend_to_save = backend.clone();
+    #[cfg(feature = "portable")]
+    if backend_to_save.is_local {
+        backend_to_save.config_path = backend_to_save.config_path.as_deref().map(|path| {
+            crate::services::portable::stored_path(crate::services::portable::root(manager), path)
+        });
+    }
     if backend_to_save.is_auth_generated {
         backend_to_save.username = None;
         backend_to_save.password = None;

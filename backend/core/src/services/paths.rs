@@ -54,6 +54,11 @@ impl AppPaths {
             .map_err(|e| format!("Failed to create cache directory: {e}"))?;
         std::fs::create_dir_all(&self.logs_dir)
             .map_err(|e| format!("Failed to create logs directory: {e}"))?;
+        #[cfg(feature = "portable")]
+        for directory in [self.cache_dir.join("temp"), self.cache_dir.join("rclone")] {
+            std::fs::create_dir_all(directory)
+                .map_err(|e| crate::localized_error!("backendErrors.settings.managerInitFailed", "error" => e))?;
+        }
         // Create log subdirectories
         std::fs::create_dir_all(self.get_app_log_dir())
             .map_err(|e| format!("Failed to create app log directory: {e}"))?;

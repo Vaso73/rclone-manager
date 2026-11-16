@@ -31,6 +31,21 @@ pub async fn save_setting(
     key: String,
     value: serde_json::Value,
 ) -> Result<(), String> {
+    #[cfg(feature = "portable")]
+    let value = if category == "core" && key == "rclone_binary" {
+        match value.as_str() {
+            Some(path) if !matches!(path, "" | "system") => {
+                let paths = crate::services::paths::AppPaths::from_app_handle(&app)?;
+                serde_json::json!(crate::services::portable::stored_path(
+                    &paths.resource_dir,
+                    std::path::Path::new(path)
+                ))
+            }
+            _ => value,
+        }
+    } else {
+        value
+    };
     let (saved_category, saved_key, saved_value) = (category.clone(), key.clone(), value.clone());
     blocking(&app, move |manager| {
         manager.save_setting(&saved_category, &saved_key, &saved_value)
