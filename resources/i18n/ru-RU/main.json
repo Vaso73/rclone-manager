@@ -1571,7 +1571,19 @@
         "clear": "Очистить",
         "cronFor": "Cron-выражение для {{name}}"
       },
-      "cronPlaceholder": "Введите cron-выражение, например 0 0 * * *"
+      "cronPlaceholder": "Введите cron-выражение, например 0 0 * * *",
+      "autoStartOncePerDay": "At most once per day on application startup",
+      "autoStartOncePerDayHelp": "Skip startup runs after this profile has already succeeded today. Manual runs and other schedules remain available. Dry runs and failed runs do not count.",
+      "backupHistoryTitle": "Version history",
+      "backupHistoryDir": "History folder (optional)",
+      "backupHistoryPlaceholder": "remote:history/profile",
+      "backupHistoryHelp": "Replaced and deleted files are archived here with their original folder tree, in a unique dated folder for each run. History is never deleted automatically. Use a separate folder on the same destination; leave empty to keep existing behavior.",
+      "vssTitle": "Read from a Windows snapshot (VSS)",
+      "vssHelp": "Read local sources from a fixed point in time, including locked files. No fallback to live files if snapshot creation fails. Unsaved data in applications is not included.",
+      "vssHelperReady": "VSS helper enabled",
+      "vssHelperEnable": "Enable VSS helper",
+      "vssHelperSetupHelp": "Windows will ask for administrator confirmation during setup. The app keeps its normal permissions. The helper only creates and removes its own snapshots; it does not schedule or transfer files.",
+      "vssUnsupported": "VSS is available only in the Windows desktop app with its local backend."
     },
     "cronPresets": {
       "daily-9am": {
@@ -3331,7 +3343,22 @@
       "refreshFailed": "Не удалось обновить систему после восстановления резервной копии: {{error}}",
       "restoreIncomplete": "Восстановление резервной копии не завершено: {{error}}",
       "wrongPassword": "Неверный пароль. Повторите попытку.",
-      "passwordRequired": "Для расшифровки этой резервной копии требуется пароль."
+      "passwordRequired": "Для расшифровки этой резервной копии требуется пароль.",
+      "historyPathInvalid": "The history folder must be an unambiguous local or remote path without parent-directory traversal.",
+      "historySameFilesystem": "Version history must use the same destination filesystem and path type as the mirror.",
+      "historyOverlap": "The history folder must not overlap the source or the current mirror.",
+      "historyConflict": "An advanced backup-dir option is already configured. Use either that option or the version-history folder.",
+      "historyOperationUnsupported": "Version history is available for sync, copy and move profiles.",
+      "dailyStateInvalid": "The saved daily-run state could not be read or written safely.",
+      "vssUnsupported": "VSS requires the local Windows desktop backend.",
+      "vssSourceInvalid": "VSS requires local paths on one fixed NTFS volume, without parent traversal or alternate data streams.",
+      "vssHelperFailed": "The VSS helper could not be verified or contacted. Enable it again in the profile settings.",
+      "vssCleanupFailed": "Removal of the owned VSS snapshot could not be confirmed. The run is not marked successful.",
+      "vssHelperBusy": "Another VSS run or helper setup is still active. Wait for it to finish.",
+      "vssSetupCancelled": "Windows administrator confirmation was cancelled. VSS was not enabled.",
+      "vssHelperRequired": "Enable the VSS helper in the profile before running a snapshot backup.",
+      "vssOperationUnsupported": "VSS is available for sync and copy profiles; it cannot be used to move or delete the live source.",
+      "vssSetupFailed": "VSS helper setup did not finish (code {{code}}). Keep the existing task and report this code for diagnosis."
     },
     "backend": {
       "nameEmpty": "Название бэкенда не может быть пустым",

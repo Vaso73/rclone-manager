@@ -157,6 +157,14 @@ pub struct AppConfig {
     /// Seconds to wait after startup before an auto-start profile launches.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_start_delay: Option<u64>,
+    /// Apply the daily success guard only to application-start triggers.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub auto_start_once_per_day: bool,
+    /// Root of version history, outside the current mirror; no automatic pruning.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backup_history_dir: Option<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub use_vss: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cron_enabled: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -412,6 +420,9 @@ pub mod helper_config_keys {
 pub const APP_PARTITION_KEYS: &[&str] = &[
     "autoStart",
     "autoStartDelay",
+    "autoStartOncePerDay",
+    "backupHistoryDir",
+    "useVss",
     "cronEnabled",
     "cronExpression",
     "watchEnabled",

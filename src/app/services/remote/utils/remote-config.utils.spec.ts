@@ -308,6 +308,35 @@ describe('remote-config.utils', () => {
   });
 
   describe('mapFormToConfigProfile', () => {
+    it('round-trips backup behavior in the app partition without losing other schedules or rclone options', () => {
+      const app = {
+        autoStart: true,
+        autoStartDelay: 30,
+        autoStartOncePerDay: true,
+        backupHistoryDir: 'otherremote:history/Žlté !!!',
+        useVss: true,
+        cronEnabled: true,
+        cronExpression: '0 2 * * *',
+        watchEnabled: true,
+        watchDelay: 10,
+      };
+      const form = mapConfigToFormProfile(
+        'sync',
+        { app, rclone: { srcFs: 'D:/Source', dstFs: 'myremote:mirror', checksum: true } },
+        ctx
+      );
+      const saved = mapFormToConfigProfile('sync', form, formCtx);
+      expect(saved['app']).toEqual(app);
+      expect(saved['rclone']).toMatchObject({
+        srcFs: 'D:/Source',
+        dstFs: 'myremote:mirror',
+        checksum: true,
+      });
+      for (const key of ['autoStartOncePerDay', 'backupHistoryDir', 'useVss']) {
+        expect((saved['rclone'] as Record<string, unknown>)[key]).toBeUndefined();
+      }
+    });
+
     it('omits application defaults and restores them when reopening a serve profile', () => {
       const form = mapConfigToFormProfile('serve', { rclone: { fs: 'myremote:' } }, ctx);
       expect(form).toMatchObject({

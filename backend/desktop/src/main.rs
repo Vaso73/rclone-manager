@@ -13,5 +13,8 @@ fn main() {
 
     tauri::async_runtime::set(runtime.handle().clone());
 
+    #[cfg(all(windows, feature = "desktop"))]
+    runtime.block_on(rclone_manager_core::services::backup::vss::run_install_if_requested());
+
     rclone_manager_lib::run();
 }

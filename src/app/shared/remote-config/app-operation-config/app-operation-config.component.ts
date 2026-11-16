@@ -59,6 +59,7 @@ import { formatCronHumanReadable } from 'src/app/services/i18n/cron-locale.mappe
 import { UrlPreviewComponent } from 'src/app/shared/components/url-preview/url-preview.component';
 import { ConfigSearchService } from 'src/app/services/remote/config-search.service';
 
+import { WindowsVssService } from 'src/app/services/operations/windows-vss.service';
 import { PillDirective } from '../../directives/pill.directive';
 type PathType = 'local' | 'currentRemote' | 'otherRemote';
 type PathDirection = 'source' | 'dest';
@@ -136,6 +137,7 @@ export class OperationConfigComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly backendService = inject(BackendService);
   private readonly configSearch = inject(ConfigSearchService);
+  readonly vss = inject(WindowsVssService);
 
   readonly fullDestPath = computed(() => {
     this.formVersion();
@@ -190,6 +192,34 @@ export class OperationConfigComponent {
     this.formVersion();
     return this.opFormGroup().get('watchDelay')?.value;
   });
+
+  readonly showBackupHistory = computed(
+    () =>
+      this.opFormGroup().contains('backupHistoryDir') &&
+      ['sync', 'copy', 'move'].includes(this.operationType() ?? '') &&
+      this.matchesSearch(
+        ['backup', 'history', 'versions', 'archive'],
+        ['wizards.appOperation.backupHistoryTitle', 'wizards.appOperation.backupHistoryHelp']
+      )
+  );
+
+  readonly showVss = computed(() => {
+    this.formVersion();
+    return (
+      this.opFormGroup().contains('useVss') &&
+      ['sync', 'copy'].includes(this.operationType() ?? '') &&
+      (this.vss.supported() || !!this.opFormGroup().get('useVss')?.value) &&
+      this.matchesSearch(['vss', 'snapshot', 'locked', 'backup'], ['wizards.appOperation.vssTitle'])
+    );
+  });
+
+  async enableVssHelper(): Promise<void> {
+    try {
+      await this.vss.enable();
+    } catch {
+      /* The service displays the translated error. */
+    }
+  }
 
   readonly isMount = computed(() => this.operationType() === 'mount');
   readonly isServe = computed(() => this.operationType() === 'serve');
@@ -252,8 +282,12 @@ export class OperationConfigComponent {
     () =>
       this.showAutomations() &&
       this.matchesSearch(
-        ['auto', 'start', 'enable', 'delay'],
-        ['wizards.appOperation.enableAutoStart', 'wizards.appOperation.autoStartDelay']
+        ['auto', 'start', 'enable', 'delay', 'daily', 'once'],
+        [
+          'wizards.appOperation.enableAutoStart',
+          'wizards.appOperation.autoStartDelay',
+          'wizards.appOperation.autoStartOncePerDay',
+        ]
       )
   );
   readonly showCronSection = computed(
@@ -374,6 +408,11 @@ export class OperationConfigComponent {
   });
 
   constructor() {
+    effect(() => {
+      if (['sync', 'copy'].includes(this.operationType() ?? '') && this.vss.supported()) {
+        void this.vss.refresh();
+      }
+    });
     effect(onCleanup => {
       const form = this.opFormGroup();
       const sub = form.valueChanges.subscribe(() => this.formVersion.update((v: number) => v + 1));

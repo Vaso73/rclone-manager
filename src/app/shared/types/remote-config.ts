@@ -184,6 +184,12 @@ export interface AppConfig {
   autoStart?: boolean;
   /** Seconds to wait after startup before the profile auto-starts. */
   autoStartDelay?: number;
+  /** Skip startup runs after this profile has already succeeded today. */
+  autoStartOncePerDay?: boolean;
+  /** Archive replaced/deleted files under a unique run folder; never prune history. */
+  backupHistoryDir?: string;
+  /** Read local Windows sources through a helper-owned VSS snapshot. */
+  useVss?: boolean;
   cronEnabled?: boolean;
   cronExpression?: string | null;
   watchEnabled?: boolean;
@@ -200,6 +206,9 @@ export const DEFAULT_PROFILE_NAME = 'Default';
 export const APP_CONFIG_DEFAULTS: Readonly<Required<AppConfig>> = Object.freeze({
   autoStart: false,
   autoStartDelay: 0,
+  autoStartOncePerDay: false,
+  backupHistoryDir: '',
+  useVss: false,
   cronEnabled: false,
   cronExpression: null,
   watchEnabled: false,

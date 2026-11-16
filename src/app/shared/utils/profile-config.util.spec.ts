@@ -148,4 +148,28 @@ describe('profile-config.util', () => {
       expect(formatValueDisplay(123)).toBe('123');
     });
   });
+  it('keeps optional backup behavior off for existing profiles and preserves explicit settings', () => {
+    const defaults = getAppConfigValues({});
+    expect(defaults['autoStartOncePerDay']).toBe(false);
+    expect(defaults['backupHistoryDir']).toBe('');
+    expect(defaults['useVss']).toBe(false);
+    const values = getAppConfigValues({
+      autoStart: true,
+      autoStartOncePerDay: true,
+      backupHistoryDir: 'NAS:history',
+      useVss: true,
+      cronEnabled: true,
+      cronExpression: '0 2 * * *',
+      watchEnabled: true,
+    });
+    expect(values).toMatchObject({
+      autoStart: true,
+      autoStartOncePerDay: true,
+      backupHistoryDir: 'NAS:history',
+      useVss: true,
+      cronEnabled: true,
+      cronExpression: '0 2 * * *',
+      watchEnabled: true,
+    });
+  });
 });

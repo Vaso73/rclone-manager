@@ -419,6 +419,75 @@ pub async fn submit_transfer_batch(
     app: AppHandle,
     backend: Backend,
     transfer_type: OperationType,
+    mut target_pairs: Vec<(String, String)>,
+    common: &crate::rclone::commands::common::CommonConfigParams,
+    chain: ChainMode,
+    mut metadata: JobMetadata,
+) -> Result<String, String> {
+    if !common.app.use_vss {
+        return submit_transfer_batch_inner(
+            app,
+            backend,
+            transfer_type,
+            target_pairs,
+            common,
+            chain,
+            metadata,
+        )
+        .await;
+    }
+    if !matches!(transfer_type, OperationType::Sync | OperationType::Copy) {
+        return Err(crate::localized_error!(
+            "backendErrors.backup.vssOperationUnsupported"
+        ));
+    }
+    if !backend.is_local {
+        return Err(crate::localized_error!(
+            "backendErrors.backup.vssUnsupported"
+        ));
+    }
+    let windows =
+        cfg!(all(windows, feature = "desktop")) && backend_os(&app, &backend).await? == "windows";
+    let sources: Vec<String> = target_pairs
+        .iter()
+        .map(|(source, _)| source.clone())
+        .collect();
+    if let Some(root) = common
+        .app
+        .backup_history_dir
+        .as_deref()
+        .filter(|root| !root.trim().is_empty())
+    {
+        for (_, dest) in &target_pairs {
+            crate::services::backup::history::validate_root(root, dest, &sources, windows)?;
+        }
+    }
+    let session =
+        crate::services::backup::vss::prepare(&sources, backend.is_local, windows).await?;
+    for ((source, _), snapshot) in target_pairs.iter_mut().zip(session.sources()) {
+        *source = snapshot.clone();
+    }
+    metadata.vss_session = Some(session.clone());
+    let result = submit_transfer_batch_inner(
+        app,
+        backend,
+        transfer_type,
+        target_pairs,
+        common,
+        chain,
+        metadata,
+    )
+    .await;
+    if result.is_err() {
+        session.finish().await?;
+    }
+    result
+}
+
+async fn submit_transfer_batch_inner(
+    app: AppHandle,
+    backend: Backend,
+    transfer_type: OperationType,
     target_pairs: Vec<(String, String)>,
     common: &crate::rclone::commands::common::CommonConfigParams,
     chain: ChainMode,
@@ -448,6 +517,34 @@ pub async fn submit_transfer_batch(
 
     let transport = RoutingTransport::for_backend(app.clone(), backend.clone());
     let windows = backend_os(&app, &backend).await? == "windows";
+    let history_root = common
+        .app
+        .backup_history_dir
+        .as_deref()
+        .filter(|root| !root.trim().is_empty());
+    if let Some(root) = history_root {
+        if !matches!(
+            transfer_type,
+            OperationType::Sync | OperationType::Copy | OperationType::Move
+        ) {
+            return Err(crate::localized_error!(
+                "backendErrors.backup.historyOperationUnsupported"
+            ));
+        }
+        let sources: Vec<String> = target_pairs
+            .iter()
+            .map(|(source, _)| source.clone())
+            .collect();
+        for (_, dest) in &target_pairs {
+            crate::services::backup::history::validate_root(root, dest, &sources, windows)?;
+        }
+    }
+    let history_run = format!(
+        "{}_{}",
+        chrono::Local::now().format("%Y-%m-%d_%H-%M-%S%.3f"),
+        uuid::Uuid::new_v4().simple()
+    );
+    let source_count = target_pairs.len();
     let mut tasks = Vec::with_capacity(target_pairs.len());
     for (source, _) in &target_pairs {
         let transport = transport.as_ref();
@@ -515,12 +612,44 @@ pub async fn submit_transfer_batch(
             }
         }
 
+        let mut backend_options = common.backend_options.clone();
+        if let Some(root) = history_root {
+            crate::services::backup::history::apply(
+                &mut config,
+                root,
+                &history_run,
+                i,
+                source_count,
+            )?;
+            let mut options = Value::Object(
+                backend_options
+                    .take()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .collect(),
+            );
+            crate::services::backup::history::apply(
+                &mut options,
+                root,
+                &history_run,
+                i,
+                source_count,
+            )?;
+            backend_options = Some(
+                options
+                    .as_object()
+                    .ok_or_else(|| invalid_option("backup_dir"))?
+                    .clone()
+                    .into_iter()
+                    .collect(),
+            );
+        }
         let params = GenericTransferParams {
             source: source.clone(),
             dest: dest.clone(),
             rclone_config: config,
             filter_options: common.filter_options.clone(),
-            backend_options: common.backend_options.clone(),
+            backend_options,
             runtime_remote_options: common.runtime_remote_options.clone(),
             transfer_type,
             is_dir,
@@ -639,6 +768,14 @@ pub(crate) async fn start_resolved_profile_batch(
         common.dest.clone()
     };
 
+    let completion_key = (common.app.auto_start_once_per_day && !dry_run).then(|| {
+        crate::services::backup::daily::key(
+            &backend.name,
+            &params.remote_name,
+            &params.profile_name,
+            transfer_type,
+        )
+    });
     let metadata = JobMetadata::new(
         params.remote_name.clone(),
         transfer_type.as_job_type().unwrap_or(JobType::Sync),
@@ -649,6 +786,7 @@ pub(crate) async fn start_resolved_profile_batch(
     .with_origin(params.source)
     .with_no_cache(params.no_cache.unwrap_or(false))
     .with_dry_run(dry_run)
+    .with_daily_success_key(completion_key)
     .with_execute_id(params.execute_id);
 
     submit_transfer_batch(
@@ -847,6 +985,85 @@ mod batch_tests {
             &json!({}),
         )
         .unwrap()
+    }
+
+    #[tokio::test]
+    async fn history_is_encoded_as_one_frozen_archive_per_source_without_changing_other_flags() {
+        let mut backend = BatchBackend::new(
+            vec![("first/旅行.txt", Ok(false)), ("second/Arşiv", Ok(true))],
+            true,
+        )
+        .await;
+        let mut common = common_config();
+        common.app.backup_history_dir = Some("target:history".into());
+        common.rclone_config["checksum"] = json!(true);
+        assert!(
+            backend
+                .submit(OperationType::Copy, &common)
+                .await
+                .unwrap_err()
+                .contains("batch captured")
+        );
+        let requests = backend.requests().await;
+        let inputs = requests[2].1["inputs"].as_array().unwrap();
+        let first = inputs[0]["_config"]["BackupDir"].as_str().unwrap();
+        let second = inputs[1]["_config"]["BackupDir"].as_str().unwrap();
+        assert!(first.starts_with("target:history/"));
+        assert!(first.ends_with("/source-1"));
+        assert_eq!(
+            second.strip_suffix("/source-2"),
+            first.strip_suffix("/source-1")
+        );
+        for input in inputs {
+            assert_eq!(input["checksum"], true);
+        }
+        assert_eq!(common.rclone_config["checksum"], true);
+        assert!(common.rclone_config.get("backup_dir").is_none());
+    }
+
+    #[tokio::test]
+    async fn advanced_history_conflict_rejects_batch_before_any_mutation() {
+        let mut backend = BatchBackend::new(
+            vec![("first/旅行.txt", Ok(false)), ("second/Arşiv", Ok(true))],
+            false,
+        )
+        .await;
+        let mut common = common_config();
+        common.app.backup_history_dir = Some("target:history".into());
+        common.backend_options = Some(HashMap::from([("BackupDir".into(), json!("target:old"))]));
+        let error = backend
+            .submit(OperationType::Copy, &common)
+            .await
+            .unwrap_err();
+        assert!(error.contains("historyConflict"));
+        assert_eq!(backend.requests().await.len(), 2);
+        assert_eq!(
+            common.backend_options.as_ref().unwrap()["BackupDir"],
+            "target:old"
+        );
+    }
+
+    #[tokio::test]
+    async fn overlapping_history_and_remote_vss_do_not_submit_any_job() {
+        for vss in [false, true] {
+            let mut backend = BatchBackend::new(vec![], false).await;
+            let mut common = common_config();
+            if vss {
+                common.app.use_vss = true;
+            } else {
+                common.app.backup_history_dir = Some("target:backup/history".into());
+            }
+            let error = backend
+                .submit(OperationType::Copy, &common)
+                .await
+                .unwrap_err();
+            assert!(error.contains(if vss {
+                "vssUnsupported"
+            } else {
+                "historyOverlap"
+            }));
+            assert!(backend.requests().await.is_empty());
+        }
     }
 
     #[tokio::test]

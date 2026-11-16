@@ -1574,7 +1574,19 @@
         "clear": "Vymazať",
         "cronFor": "Výraz cron pre {{name}}"
       },
-      "cronPlaceholder": "Zadajte výraz cron (napr. 0 0 * * *)"
+      "cronPlaceholder": "Zadajte výraz cron (napr. 0 0 * * *)",
+      "autoStartOncePerDay": "Pri štarte aplikácie najviac raz denne",
+      "autoStartOncePerDayHelp": "Po dnešnom úspešnom behu profilu ďalšie štarty aplikácie zálohu preskočia. Ručné spúšťanie a ostatné plány zostávajú dostupné. Skúšobné ani neúspešné behy sa nepočítajú.",
+      "backupHistoryTitle": "História verzií",
+      "backupHistoryDir": "Priečinok histórie (voliteľný)",
+      "backupHistoryPlaceholder": "pripojenie:historia/profil",
+      "backupHistoryHelp": "Prepísané a odstránené súbory sa sem odložia s pôvodným stromom priečinkov. Každý beh má vlastný dátumový priečinok. História sa automaticky nemaže. Vyber samostatný priečinok na rovnakom cieli; prázdna hodnota zachová pôvodné správanie.",
+      "vssTitle": "Čítať zo snímky Windows (VSS)",
+      "vssHelp": "Lokálne zdroje sa čítajú zo stavu v jednom okamihu vrátane zamknutých súborov. Pri chybe snímky sa živé súbory nepoužijú. Neuložené údaje v aplikáciách sa nezálohujú.",
+      "vssHelperReady": "VSS pomocník je povolený",
+      "vssHelperEnable": "Povoliť VSS pomocníka",
+      "vssHelperSetupHelp": "Pri nastavení si Windows vyžiada potvrdenie správcu. Aplikácia si ponechá bežné oprávnenia. Pomocník iba vytvára a odstraňuje vlastné snímky; neplánuje ani neprenáša súbory.",
+      "vssUnsupported": "VSS je dostupné iba v desktopovej aplikácii Windows s lokálnym backendom."
     },
     "cronPresets": {
       "daily-9am": {
@@ -3372,7 +3384,22 @@
       "refreshFailed": "Obnovenie systému po obnove zálohy zlyhalo: {{error}}",
       "restoreIncomplete": "Obnovenie zálohy bolo neúplné: {{error}}",
       "wrongPassword": "Nesprávne heslo. Skúste to znova.",
-      "passwordRequired": "Táto záloha vyžaduje na dešifrovanie heslo."
+      "passwordRequired": "Táto záloha vyžaduje na dešifrovanie heslo.",
+      "historyPathInvalid": "Priečinok histórie musí mať jednoznačnú lokálnu alebo vzdialenú cestu bez odkazov na nadradený priečinok.",
+      "historySameFilesystem": "História musí používať rovnaký cieľový súborový systém a typ cesty ako zrkadlo.",
+      "historyOverlap": "Priečinok histórie sa nesmie prekrývať so zdrojom ani s aktuálnym zrkadlom.",
+      "historyConflict": "Rozšírená voľba backup-dir je už nastavená. Použi buď túto voľbu, alebo priečinok histórie verzií.",
+      "historyOperationUnsupported": "História verzií je dostupná pre profily synchronizácie, kopírovania a presúvania.",
+      "dailyStateInvalid": "Stav denného spúšťania sa nepodarilo bezpečne prečítať alebo uložiť.",
+      "vssUnsupported": "VSS vyžaduje lokálny backend desktopovej aplikácie Windows.",
+      "vssSourceInvalid": "VSS vyžaduje lokálne cesty na jednom pevnom NTFS zväzku, bez odkazov na nadradený priečinok alebo alternatívne dátové prúdy.",
+      "vssHelperFailed": "VSS pomocníka sa nepodarilo overiť alebo kontaktovať. Povoľ ho znova v nastavení profilu.",
+      "vssCleanupFailed": "Odstránenie vlastnej VSS snímky sa nepodarilo potvrdiť. Beh sa neoznačil ako úspešný.",
+      "vssHelperBusy": "Iný VSS beh alebo nastavenie pomocníka ešte prebieha. Počkaj na jeho dokončenie.",
+      "vssSetupCancelled": "Potvrdenie správcu vo Windows bolo zrušené. VSS sa nepovolilo.",
+      "vssHelperRequired": "Pred zálohou zo snímky povoľ VSS pomocníka v nastavení profilu.",
+      "vssOperationUnsupported": "VSS je dostupné pre synchronizáciu a kopírovanie; nemožno ním presúvať ani mazať živý zdroj.",
+      "vssSetupFailed": "Nastavenie VSS pomocníka sa nedokončilo (kód {{code}}). Pošli tento kód na kontrolu; existujúcu úlohu nemaž."
     },
     "backend": {
       "nameEmpty": "Názov backendu nemôže byť prázdny",

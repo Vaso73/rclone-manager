@@ -83,6 +83,10 @@ pub fn dispatch_invoke(invoke: tauri::ipc::Invoke<tauri::Wry>) -> bool {
         return true;
     }
     let handler: fn(tauri::ipc::Invoke<tauri::Wry>) -> bool = tauri::generate_handler![
+        #[cfg(all(windows, feature = "desktop", not(feature = "web-server")))]
+        get_vss_helper_status,
+        #[cfg(all(windows, feature = "desktop", not(feature = "web-server")))]
+        enable_vss_helper,
         #[cfg(not(feature = "web-server"))]
         crate::native::files::open_in_files,
         #[cfg(not(feature = "web-server"))]
@@ -109,6 +113,20 @@ pub fn dispatch_invoke(invoke: tauri::ipc::Invoke<tauri::Wry>) -> bool {
         crate::desktop::window::new_window,
     ];
     handler(invoke)
+}
+
+#[cfg(all(windows, feature = "desktop", not(feature = "web-server")))]
+#[tauri::command]
+async fn get_vss_helper_status()
+-> Result<rclone_manager_core::services::backup::vss::HelperStatus, String> {
+    rclone_manager_core::services::backup::vss::helper_status().await
+}
+
+#[cfg(all(windows, feature = "desktop", not(feature = "web-server")))]
+#[tauri::command]
+async fn enable_vss_helper()
+-> Result<rclone_manager_core::services::backup::vss::HelperStatus, String> {
+    rclone_manager_core::services::backup::vss::enable_helper().await
 }
 
 #[cfg(all(test, desktop, not(feature = "web-server")))]

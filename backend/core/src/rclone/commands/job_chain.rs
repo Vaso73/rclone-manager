@@ -87,6 +87,7 @@ async fn run_in_foreground(
         let wait = index < last;
         if wait {
             job.metadata.execute_id = None;
+            job.metadata.daily_success_key = None;
         }
         job_id = submit(&app, &backend, job, wait).await?;
     }
@@ -104,6 +105,7 @@ async fn run_in_background(
         return Ok(0);
     };
     first.metadata.execute_id = None;
+    first.metadata.daily_success_key = None;
     let first_id = submit(&app, &backend, first, false).await?;
 
     let rest: Vec<ChainJob> = jobs.collect();
@@ -137,6 +139,7 @@ async fn follow(
         wait_for_job(&cache, previous).await?;
         if index < last {
             job.metadata.execute_id = None;
+            job.metadata.daily_success_key = None;
         }
         previous = submit(app, backend, job, false)
             .await

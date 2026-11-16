@@ -1,5 +1,6 @@
 pub mod alerts;
 pub mod automation;
+pub mod backup;
 pub mod bridge;
 pub mod cli;
 pub mod debug;

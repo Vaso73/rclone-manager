@@ -49,6 +49,12 @@ pub struct JobMetadata {
     pub parent_job_id: Option<u64>,
     #[serde(default)]
     pub execute_id: Option<String>,
+    /// Hashed profile identity; no paths or credentials are stored in daily markers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub daily_success_key: Option<String>,
+    /// A live handle is never serialized or exposed to transports.
+    #[serde(skip)]
+    pub vss_session: Option<Arc<crate::services::backup::vss::Session>>,
 }
 
 impl JobMetadata {
@@ -71,7 +77,15 @@ impl JobMetadata {
             dry_run: false,
             parent_job_id: None,
             execute_id: None,
+            daily_success_key: None,
+            vss_session: None,
         }
+    }
+
+    #[must_use]
+    pub fn with_daily_success_key(mut self, key: Option<String>) -> Self {
+        self.daily_success_key = key;
+        self
     }
 
     #[must_use]
@@ -633,7 +647,21 @@ async fn handle_job_completion(
     app: &AppHandle,
     last_stats: Option<Value>,
 ) -> Result<Value, String> {
-    let outcome = resolve_job_outcome(&job_status, &metadata.job_type, &metadata.source);
+    let mut outcome = resolve_job_outcome(&job_status, &metadata.job_type, &metadata.source);
+    if let Some(snapshot) = metadata.vss_session.as_ref() {
+        if !outcome.success {
+            // A failed monitor may still have a running job. Ask rclone to stop before releasing its source.
+            let _ = context
+                .transport
+                .rpc(job::STOP, Some(&json!({"jobid": jobid})))
+                .await;
+        }
+        if let Err(error) = snapshot.finish().await {
+            outcome.success = false;
+            outcome.stopped = false;
+            outcome.error_msg = Some(error);
+        }
+    }
 
     if !metadata.no_cache {
         if let Err(error) = persist_final_job_state(
@@ -773,6 +801,13 @@ fn dispatch_job_completion_effects(
             );
         }
         return;
+    }
+
+    if !metadata.dry_run
+        && let Some(key) = metadata.daily_success_key.as_deref()
+        && let Err(error) = crate::services::backup::daily::record_success(app, key)
+    {
+        warn!("Could not save successful profile day: {error}");
     }
 
     if !metadata.no_cache {
@@ -997,6 +1032,54 @@ pub async fn submit_batch_job_with_options(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_successful_real_runs_write_a_daily_marker() {
+        let temp = tempfile::tempdir().unwrap();
+        let app = AppHandle::default();
+        app.manage(crate::services::paths::AppPaths {
+            config_dir: temp.path().join("config"),
+            cache_dir: temp.path().join("cache"),
+            logs_dir: temp.path().join("logs"),
+            resource_dir: temp.path().join("resources"),
+        });
+        let key = crate::services::backup::daily::key(
+            "local",
+            "NAS",
+            "Default",
+            crate::utils::types::remotes::OperationType::Sync,
+        );
+        for (success, stopped, dry_run) in [
+            (false, false, false),
+            (false, true, false),
+            (true, false, true),
+        ] {
+            let meta = JobMetadata::new("NAS", JobType::Sync, vec![], "NAS:backup")
+                .with_no_cache(true)
+                .with_dry_run(dry_run)
+                .with_daily_success_key(Some(key.clone()));
+            let outcome = JobOutcome {
+                success,
+                stopped,
+                error_msg: None,
+                cryptcheck_output: None,
+            };
+            dispatch_job_completion_effects(&app, "local", 1, &meta, &outcome, &json!({}));
+            assert!(crate::services::backup::daily::due(&app, &key).unwrap());
+            assert!(!temp.path().join("config").exists());
+        }
+        let meta = JobMetadata::new("NAS", JobType::Sync, vec![], "NAS:backup")
+            .with_no_cache(true)
+            .with_daily_success_key(Some(key.clone()));
+        let outcome = JobOutcome {
+            success: true,
+            stopped: false,
+            error_msg: None,
+            cryptcheck_output: None,
+        };
+        dispatch_job_completion_effects(&app, "local", 1, &meta, &outcome, &json!({}));
+        assert!(!crate::services::backup::daily::due(&app, &key).unwrap());
+    }
 
     #[test]
     fn monitor_validates_inner_rc_status_and_completion_fields() {

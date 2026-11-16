@@ -116,6 +116,7 @@ fn push_auto_start_tasks(
             execute_id: None,
         };
         let delay = config.app.auto_start_delay.unwrap_or(0);
+        let once_per_day = config.app.auto_start_once_per_day;
         if delay > 0 {
             info!(
                 "Delaying auto-start of {operation} {} profile '{}' by {delay}s",
@@ -127,6 +128,25 @@ fn push_auto_start_tasks(
             let app = task_app;
             let remote = params.remote_name.clone();
             let profile = params.profile_name.clone();
+            if once_per_day && !matches!(operation, OperationType::Mount | OperationType::Serve) {
+                let key = crate::services::backup::daily::key(
+                    params.backend_name.as_deref().unwrap_or_default(),
+                    &remote,
+                    &profile,
+                    operation,
+                );
+                match crate::services::backup::daily::due(&app, &key) {
+                    Ok(false) => {
+                        info!("Skipping successful daily startup profile");
+                        return;
+                    }
+                    Ok(true) => {}
+                    Err(error) => {
+                        warn!("Daily startup profile was not started: {error}");
+                        return;
+                    }
+                }
+            }
             let result = match operation {
                 OperationType::Mount => mount_remote_profile(app, params).await,
                 OperationType::Serve => start_serve_profile(app, params).await.map(|_| ()),

@@ -103,6 +103,25 @@ pub async fn resolve_profile_settings(
                 operation.config_key()
             )
         })?;
+    if config.app.use_vss && !matches!(operation, OperationType::Sync | OperationType::Copy) {
+        return Err(crate::localized_error!(
+            "backendErrors.backup.vssOperationUnsupported"
+        ));
+    }
+    if config
+        .app
+        .backup_history_dir
+        .as_deref()
+        .is_some_and(|path| !path.trim().is_empty())
+        && !matches!(
+            operation,
+            OperationType::Sync | OperationType::Copy | OperationType::Move
+        )
+    {
+        return Err(crate::localized_error!(
+            "backendErrors.backup.historyOperationUnsupported"
+        ));
+    }
     // Only provider-defined option collections cross the dynamic JSON boundary.
     let options = json!({
         "name": remote_name,
@@ -156,6 +175,7 @@ pub async fn is_directory(
 
 /// Common resolved parameters used by mount, sync, copy, etc.
 pub struct CommonConfigParams {
+    pub app: crate::utils::types::remotes::AppConfig,
     pub source: Vec<String>,
     pub dest: String,
     pub rclone_config: Value,
@@ -608,6 +628,7 @@ pub(crate) fn parse_profile_config(
         &mut app.filter_profile,
         &mut app.backend_profile,
         &mut app.runtime_remote_profile,
+        &mut app.backup_history_dir,
     ]
     .into_iter()
     .flatten()
@@ -647,6 +668,7 @@ pub(crate) fn parse_profile_config(
             helper_config_keys::BACKEND,
         )?,
         runtime_remote_options: resolve_runtime_remote_options(&app, &rclone, settings)?,
+        app,
     })
 }
 

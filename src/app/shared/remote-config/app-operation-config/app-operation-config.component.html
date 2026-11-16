@@ -41,6 +41,24 @@
           </mat-expansion-panel-header>
 
           <div class="watch-options-container">
+            @if (!isMount() && !isServe() && opFormGroup().contains('autoStartOncePerDay')) {
+              <div class="watch-option-row">
+                <div class="watch-option-info">
+                  <span class="watch-option-title">{{
+                    'wizards.appOperation.autoStartOncePerDay' | translate
+                  }}</span>
+                  <span class="watch-option-hint">{{
+                    'wizards.appOperation.autoStartOncePerDayHelp' | translate
+                  }}</span>
+                </div>
+                <div class="watch-option-control">
+                  <mat-slide-toggle
+                    formControlName="autoStartOncePerDay"
+                    [title]="'wizards.appOperation.autoStartOncePerDay' | translate"
+                  />
+                </div>
+              </div>
+            }
             <div class="watch-option-row">
               <div class="watch-option-info">
                 <span class="watch-option-title">{{
@@ -343,6 +361,47 @@
           }
         </div>
       }
+    </div>
+  }
+  @if (showVss()) {
+    <div class="detail-section">
+      <mat-slide-toggle formControlName="useVss">{{
+        'wizards.appOperation.vssTitle' | translate
+      }}</mat-slide-toggle>
+      <p>{{ 'wizards.appOperation.vssHelp' | translate }}</p>
+      @if (vss.supported()) {
+        @if (vss.status()?.ready) {
+          <span appPill size="sm" tone="primary">{{
+            'wizards.appOperation.vssHelperReady' | translate
+          }}</span>
+        } @else {
+          <p>{{ 'wizards.appOperation.vssHelperSetupHelp' | translate }}</p>
+          <button
+            matButton="outlined"
+            type="button"
+            [disabled]="vss.pending()"
+            (click)="enableVssHelper()"
+          >
+            {{ 'wizards.appOperation.vssHelperEnable' | translate }}
+          </button>
+        }
+      } @else {
+        <p>{{ 'wizards.appOperation.vssUnsupported' | translate }}</p>
+      }
+    </div>
+  }
+  @if (showBackupHistory()) {
+    <div class="detail-section">
+      <div class="section-title">{{ 'wizards.appOperation.backupHistoryTitle' | translate }}</div>
+      <mat-form-field>
+        <mat-label>{{ 'wizards.appOperation.backupHistoryDir' | translate }}</mat-label>
+        <input
+          matInput
+          formControlName="backupHistoryDir"
+          [placeholder]="'wizards.appOperation.backupHistoryPlaceholder' | translate"
+        />
+      </mat-form-field>
+      <p>{{ 'wizards.appOperation.backupHistoryHelp' | translate }}</p>
     </div>
   }
 </ng-container>

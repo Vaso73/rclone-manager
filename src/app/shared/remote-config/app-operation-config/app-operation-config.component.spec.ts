@@ -13,8 +13,26 @@ import { FileSystemService } from 'src/app/services/operations/file-system.servi
 import { PathSelectionService } from 'src/app/services/remote/path-selection.service';
 import { NotificationService } from 'src/app/services/ui/notification.service';
 import { AutomationService } from 'src/app/services/operations/automation.service';
+import {
+  WindowsVssService,
+  VssHelperStatus,
+} from 'src/app/services/operations/windows-vss.service';
 
 describe('OperationConfigComponent', () => {
+  const newVssMock = (): {
+    supported: ReturnType<typeof signal<boolean>>;
+    status: ReturnType<typeof signal<VssHelperStatus | null>>;
+    pending: ReturnType<typeof signal<boolean>>;
+    refresh: ReturnType<typeof vi.fn>;
+    enable: ReturnType<typeof vi.fn>;
+  } => ({
+    supported: signal(false),
+    status: signal<VssHelperStatus | null>(null),
+    pending: signal(false),
+    refresh: vi.fn(),
+    enable: vi.fn().mockResolvedValue(undefined),
+  });
+  let vssMock = newVssMock();
   let fixture: ComponentFixture<OperationConfigComponent>;
   let component: OperationConfigComponent;
   let pathInspectionServiceMock: {
@@ -43,6 +61,9 @@ describe('OperationConfigComponent', () => {
       }),
       autoStart: new FormControl(false),
       autoStartDelay: new FormControl(0),
+      autoStartOncePerDay: new FormControl(false),
+      backupHistoryDir: new FormControl(''),
+      useVss: new FormControl(false),
       cronEnabled: new FormControl(false),
       cronExpression: new FormControl(null),
       watchEnabled: new FormControl(false),
@@ -53,6 +74,7 @@ describe('OperationConfigComponent', () => {
   };
 
   beforeEach(async () => {
+    vssMock = newVssMock();
     pathInspectionServiceMock = {
       resolveDefaultPath: vi
         .fn()
@@ -80,6 +102,7 @@ describe('OperationConfigComponent', () => {
       imports: [OperationConfigComponent, MatIconTestingModule],
       providers: [
         provideTranslateService(),
+        { provide: WindowsVssService, useValue: vssMock },
         { provide: PathInspectionService, useValue: pathInspectionServiceMock },
         { provide: BackendService, useValue: backendServiceMock },
         { provide: PathService, useValue: pathServiceMock },
@@ -127,7 +150,7 @@ describe('OperationConfigComponent', () => {
   });
 
   const setupComponent = (
-    operationType: 'mount' | 'serve' | 'bisync' | 'sync',
+    operationType: 'mount' | 'serve' | 'bisync' | 'sync' | 'copy' | 'move' | 'check',
     currentRemoteName: string,
     isNewRemote = true,
     initialPath = ''
@@ -477,5 +500,62 @@ describe('OperationConfigComponent', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+  it.each(['sync', 'copy', 'move'] as const)(
+    'offers history for %s without changing existing options',
+    type => {
+      const { form, fixture } = setupComponent(type, 'NAS', false);
+      form.patchValue({ autoStart: true, cronEnabled: true, cronExpression: '0 2 * * *' });
+      const before = form.getRawValue();
+      const input = fixture.nativeElement.querySelector(
+        'input[formcontrolname="backupHistoryDir"]'
+      ) as HTMLInputElement;
+      expect(input).toBeTruthy();
+      input.value = 'NAS:history/Žlté !!!';
+      input.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+      expect(form.getRawValue()).toEqual({ ...before, backupHistoryDir: 'NAS:history/Žlté !!!' });
+    }
+  );
+
+  it.each(['mount', 'serve', 'bisync', 'check'] as const)(
+    'does not add irrelevant history controls to %s',
+    type => {
+      const { fixture } = setupComponent(type, 'NAS', false);
+      expect(
+        fixture.nativeElement.querySelector('input[formcontrolname="backupHistoryDir"]')
+      ).toBeNull();
+    }
+  );
+
+  it('loads VSS status without installing or enabling anything and requires an explicit setup click', async () => {
+    vssMock.supported.set(true);
+    const { form, fixture } = setupComponent('sync', 'NAS', false);
+    expect(vssMock.refresh).toHaveBeenCalled();
+    expect(vssMock.enable).not.toHaveBeenCalled();
+    const toggle = fixture.nativeElement.querySelector(
+      'mat-slide-toggle[formcontrolname="useVss"] button'
+    ) as HTMLButtonElement;
+    toggle.click();
+    fixture.detectChanges();
+    expect(form.get('useVss')?.value).toBe(true);
+    expect(vssMock.enable).not.toHaveBeenCalled();
+    const button = Array.from(
+      fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>
+    ).find(button => button.textContent?.includes('wizards.appOperation.vssHelperEnable'));
+    expect(button).toBeTruthy();
+    button?.click();
+    await fixture.whenStable();
+    expect(vssMock.enable).toHaveBeenCalledOnce();
+  });
+
+  it('preserves stored VSS settings on an unsupported backend until the user turns them off', () => {
+    const { form, fixture } = setupComponent('sync', 'NAS', false);
+    form.get('useVss')?.setValue(true);
+    fixture.detectChanges();
+    expect(form.get('useVss')?.value).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain('wizards.appOperation.vssUnsupported');
+    expect(vssMock.enable).not.toHaveBeenCalled();
+    expect(vssMock.refresh).not.toHaveBeenCalled();
   });
 });
