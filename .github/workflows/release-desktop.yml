@@ -70,6 +70,10 @@ jobs:
         shell: bash
         run: cargo test --manifest-path backend/Cargo.toml -p rclone-manager-core --features desktop,portable --target x86_64-pc-windows-msvc --lib services::backup -- --test-threads=1
 
+      - name: Test inline local source paths on Windows
+        shell: bash
+        run: cargo test --manifest-path backend/Cargo.toml -p rclone-manager-core --features desktop,portable --target x86_64-pc-windows-msvc --lib inline_local -- --test-threads=1
+
       - name: Package portable ZIP
         shell: pwsh
         run: |

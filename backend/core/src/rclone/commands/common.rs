@@ -534,11 +534,19 @@ fn find_unquoted(value: &str, delimiter: char) -> Option<usize> {
 /// Resolve a file as its parent filesystem plus its name on the target OS.
 pub fn split_file_path(path: &str, windows: bool) -> Option<(String, String)> {
     if let Some(end) = remote_prefix_len(path, windows).ok()? {
-        return Some((
-            path[..end].to_string(),
-            normalize_fs_path(&path[end..], windows),
-        ));
+        let prefix = &path[..end];
+        if (prefix == ":local:" || prefix.starts_with(":local,")) && end < path.len() {
+            // The anonymous local backend still takes a local filesystem root. Sending
+            // its absolute path as `remote` instead would resolve it below the daemon CWD.
+            let (parent, name) = split_local_file_path(&path[end..], windows);
+            return Some((format!("{prefix}{parent}"), name));
+        }
+        return Some((prefix.to_string(), normalize_fs_path(&path[end..], windows)));
     }
+    Some(split_local_file_path(path, windows))
+}
+
+fn split_local_file_path(path: &str, windows: bool) -> (String, String) {
     let path = normalize_fs_path(path, windows);
     if windows && let Some(unc) = path.strip_prefix("//") {
         let mut parts = unc.split('/');
@@ -549,11 +557,11 @@ pub fn split_file_path(path: &str, windows: bool) -> Option<(String, String)> {
             parts.next();
         }
         if parts.next().is_none() {
-            return Some((path, String::new()));
+            return (path, String::new());
         }
     }
     if path.ends_with('/') {
-        return Some((path, String::new()));
+        return (path, String::new());
     }
     match path.rfind('/') {
         Some(index) => {
@@ -566,15 +574,15 @@ pub fn split_file_path(path: &str, windows: bool) -> Option<(String, String)> {
             } else {
                 index
             };
-            Some((
+            (
                 path[..parent_end].to_string(),
                 path[index + 1..].to_string(),
-            ))
+            )
         }
         None if windows && path.len() >= 2 && path.as_bytes()[1] == b':' => {
-            Some((path[..2].to_string(), path[2..].to_string()))
+            (path[..2].to_string(), path[2..].to_string())
         }
-        None => Some((".".into(), path)),
+        None => (".".into(), path),
     }
 }
 
@@ -913,6 +921,54 @@ mod tests {
             );
             assert_eq!(split_file_path(&path, false), parse_fs(&path, false));
         }
+    }
+
+    #[test]
+    fn inline_local_paths_keep_absolute_roots_and_connection_options() {
+        let prefix = ":local,copy_links=false,links=false,no_check_updated=false:";
+        for (path, parent, name, windows) in [
+            (
+                r"C:\ProgramData\VSS\snapshot\!!!_LiberKey_!!!",
+                "C:/ProgramData/VSS/snapshot",
+                "!!!_LiberKey_!!!",
+                true,
+            ),
+            (r"D:\file.txt", "D:/", "file.txt", true),
+            (r"D:\", "D:/", "", true),
+            (
+                r"\\server\share\file.txt",
+                "//server/share",
+                "file.txt",
+                true,
+            ),
+            (
+                "/snapshot/Žlté/file.txt",
+                "/snapshot/Žlté",
+                "file.txt",
+                false,
+            ),
+            ("/snapshot/a:b.txt", "/snapshot", "a:b.txt", false),
+            ("relative:name.txt", ".", "relative:name.txt", false),
+            ("/", "/", "", false),
+            ("", "", "", false),
+        ] {
+            assert_eq!(
+                split_file_path(&format!("{prefix}{path}"), windows),
+                Some((format!("{prefix}{parent}"), name.into())),
+                "{path}"
+            );
+        }
+        assert_eq!(
+            split_file_path(":local:/snapshot/file.txt", false),
+            Some((":local:/snapshot".into(), "file.txt".into()))
+        );
+        assert_eq!(
+            split_file_path(":local,encoding='a:b,c':/snapshot/file.txt", false),
+            Some((
+                ":local,encoding='a:b,c':/snapshot".into(),
+                "file.txt".into()
+            ))
+        );
     }
 
     #[test]

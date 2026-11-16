@@ -988,6 +988,47 @@ mod batch_tests {
     }
 
     #[tokio::test]
+    async fn inline_local_snapshot_sources_keep_their_root_in_stat_and_transfer_payloads() {
+        let prefix = ":local,copy_links=false,links=false,no_check_updated=false:";
+        for is_dir in [true, false] {
+            let mut backend = BatchBackend::new(vec![("LiberKey", Ok(is_dir))], true).await;
+            let mut common = common_config();
+            common.source = vec![format!("{prefix}/protected/snapshot/LiberKey")];
+            common.app.backup_history_dir = Some("target:history".into());
+            let operation = if is_dir {
+                OperationType::Sync
+            } else {
+                OperationType::Copy
+            };
+            assert!(
+                backend
+                    .submit(operation, &common)
+                    .await
+                    .unwrap_err()
+                    .contains("batch captured")
+            );
+            let requests = backend.requests().await;
+            assert_eq!(requests[0].1["fs"], format!("{prefix}/protected/snapshot"));
+            assert_eq!(requests[0].1["remote"], "LiberKey");
+            let input = &requests[1].1["inputs"][0];
+            if is_dir {
+                assert_eq!(input["srcFs"], common.source[0]);
+                assert_eq!(input["_path"], "sync/sync");
+            } else {
+                assert_eq!(input["srcFs"], format!("{prefix}/protected/snapshot"));
+                assert_eq!(input["srcRemote"], "LiberKey");
+                assert_eq!(input["_path"], operations::COPYFILE);
+            }
+            assert!(
+                input["_config"]["BackupDir"]
+                    .as_str()
+                    .unwrap()
+                    .starts_with("target:history/")
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn history_is_encoded_as_one_frozen_archive_per_source_without_changing_other_flags() {
         let mut backend = BatchBackend::new(
             vec![("first/旅行.txt", Ok(false)), ("second/Arşiv", Ok(true))],
@@ -1487,6 +1528,30 @@ mod tests {
         );
         assert_eq!(obj.get("dstFs").unwrap(), "dstRemote:bucket/b");
         assert!(obj.get("srcRemote").is_none());
+    }
+
+    #[test]
+    fn inline_local_windows_file_copy_preserves_snapshot_parent_and_dry_run() {
+        let params = GenericTransferParams {
+            source: r":local,copy_links=false,links=false,no_check_updated=false:C:\ProgramData\VSS\snapshot\Žlté\file.txt".into(),
+            dest: "NAS:backup".into(),
+            rclone_config: json!({}),
+            filter_options: None,
+            backend_options: None,
+            runtime_remote_options: None,
+            transfer_type: OperationType::Copy,
+            is_dir: false,
+            dry_run: Some(true),
+        };
+        let body = params.to_rclone_body(true).unwrap();
+        assert_eq!(
+            body["srcFs"],
+            ":local,copy_links=false,links=false,no_check_updated=false:C:/ProgramData/VSS/snapshot/Žlté"
+        );
+        assert_eq!(body["srcRemote"], "file.txt");
+        assert_eq!(body["dstFs"], "NAS:");
+        assert_eq!(body["dstRemote"], "backup/file.txt");
+        assert_eq!(body["_config"]["DryRun"], true);
     }
 
     #[test]
