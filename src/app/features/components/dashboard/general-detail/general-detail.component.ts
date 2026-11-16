@@ -203,7 +203,7 @@ export class GeneralDetailComponent {
 
       models.push({
         key: config.key,
-        label: config.label,
+        label: key === 'mount' && isActive ? meta.stopTooltip : config.label,
         icon,
         isSelected: true,
         isActive,

@@ -2,7 +2,7 @@ import { TitleCasePipe } from '@angular/common';
 import { CUSTOM_ELEMENTS_SCHEMA, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
-import { provideTranslateService, TranslatePipe } from '@ngx-translate/core';
+import { provideTranslateService, TranslatePipe, TranslateService } from '@ngx-translate/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ActionState, Remote } from '@app/types';
 import { GeneralDetailComponent } from './general-detail.component';
@@ -55,6 +55,12 @@ describe('GeneralDetailComponent controls', () => {
         schemas: [CUSTOM_ELEMENTS_SCHEMA],
       },
     });
+    const translate = TestBed.inject(TranslateService);
+    translate.setTranslation('sk-SK', {
+      actions: { mount: 'Pripojiť' },
+      overviews: { remoteCard: { actions: { mount: 'Pripojiť', unmount: 'Odpojiť' } } },
+    });
+    translate.use('sk-SK');
     fixture = TestBed.createComponent(GeneralDetailComponent);
     fixture.detectChanges();
   });
@@ -64,6 +70,8 @@ describe('GeneralDetailComponent controls', () => {
       '.remote-status-indicators button'
     );
     const start = vi.spyOn(fixture.componentInstance.startJob, 'emit');
+    expect(button.textContent?.trim()).toBe('Pripojiť');
+    expect(button.title).toBe('Pripojiť');
     expect(button.tagName).toBe('BUTTON');
     expect(button.getAttribute('aria-pressed')).toBe('false');
     button.click();
@@ -87,6 +95,8 @@ describe('GeneralDetailComponent controls', () => {
       '.remote-status-indicators button'
     );
     const stop = vi.spyOn(fixture.componentInstance.stopJob, 'emit');
+    expect(button.textContent?.trim()).toBe('Odpojiť');
+    expect(button.title).toBe('Odpojiť');
     expect(button.getAttribute('aria-pressed')).toBe('true');
     expect(button.dataset['tone']).toBe('accent');
     button.click();
@@ -95,6 +105,37 @@ describe('GeneralDetailComponent controls', () => {
       remoteName: 'remote',
       profileName: 'default',
     });
+  });
+
+  it('updates the mount action label in both directions without starting or stopping a job', () => {
+    const button: HTMLButtonElement = fixture.nativeElement.querySelector(
+      '.remote-status-indicators button'
+    );
+    const start = vi.spyOn(fixture.componentInstance.startJob, 'emit');
+    const stop = vi.spyOn(fixture.componentInstance.stopJob, 'emit');
+    expect(button.textContent?.trim()).toBe('Pripojiť');
+
+    selectedRemote.update(
+      remote =>
+        ({
+          ...remote,
+          status: { ...remote.status, mount: { active: true, activeProfiles: { default: 1 } } },
+        }) as Remote
+    );
+    fixture.detectChanges();
+    expect(button.textContent?.trim()).toBe('Odpojiť');
+
+    selectedRemote.update(
+      remote =>
+        ({
+          ...remote,
+          status: { ...remote.status, mount: { active: false, configuredProfiles: ['default'] } },
+        }) as Remote
+    );
+    fixture.detectChanges();
+    expect(button.textContent?.trim()).toBe('Pripojiť');
+    expect(start).not.toHaveBeenCalled();
+    expect(stop).not.toHaveBeenCalled();
   });
 
   it('disables an action while a request is in progress', () => {
