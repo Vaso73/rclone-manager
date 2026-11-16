@@ -21,6 +21,10 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Validate VSS helper with Windows PowerShell
+        shell: powershell
+        run: ./backend/core/resources/vss/Test-VssPolicy.ps1
+
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
@@ -65,10 +69,6 @@ jobs:
       - name: Test backup profile policies on Windows
         shell: bash
         run: cargo test --manifest-path backend/Cargo.toml -p rclone-manager-core --features desktop,portable --target x86_64-pc-windows-msvc --lib services::backup -- --test-threads=1
-
-      - name: Validate VSS helper with Windows PowerShell
-        shell: powershell
-        run: ./backend/core/resources/vss/Test-VssPolicy.ps1
 
       - name: Package portable ZIP
         shell: pwsh

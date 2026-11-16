@@ -2,8 +2,11 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 $module = Import-Module (Join-Path $PSScriptRoot 'VssPolicy.psm1') -Force -PassThru
 $script:passed = 0
-function Check([bool]$Ok, [string]$Name) { if (-not $Ok) { throw ('FAIL: ' + $Name) }; $script:passed++ }
-function Reject([scriptblock]$Code, [string]$Name) { $caught=$false; try { $null=& $Code } catch {$caught=$true}; Check $caught $Name }
+function Check([bool]$Ok, [string]$CaseLabel) { if (-not $Ok) { throw ('FAIL: ' + $CaseLabel) }; $script:passed++ }
+function Reject([scriptblock]$Code, [string]$CaseLabel) { $caught=$false; try { $null=& $Code } catch {$caught=$true}; Check $caught $CaseLabel }
+# Scriptblocks retain the caller's variable names; a test label must not shadow $name.
+$name = 'caller-variable'
+Reject { if ($name -ceq 'caller-variable') { throw 'EXPECTED_REJECTION' } } 'rejection helper preserves caller variables'
 $sid = 'S-1-5-21-123-456-789-1001'
 Assert-VssSid $sid
 foreach ($bad in @('', 'S-1-5-18', 'S-1-5-32-544', 'user', 'S-1-5-21-1-2-3-4;command')) { Reject { Assert-VssSid $bad } 'invalid user identity' }
