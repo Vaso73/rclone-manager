@@ -1,4 +1,7 @@
-name: "Release Desktop"
+# Vaso73 fork, branch vaso/windows-build ONLY – never part of the upstream PR.
+# Builds Windows x64 (MSI + portable ZIP) without signing secrets and without
+# creating a GitHub Release. Output is available only as workflow artifacts.
+name: 'Release Desktop'
 
 on:
   workflow_dispatch:
@@ -7,31 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  publish-tauri:
-    permissions:
-      contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: "macos-latest"
-            args: "--target aarch64-apple-darwin"
-            rust_target: "aarch64-apple-darwin"
-          - platform: "macos-latest"
-            args: "--target x86_64-apple-darwin"
-            rust_target: "x86_64-apple-darwin"
-          - platform: "ubuntu-22.04"
-            args: ""
-          - platform: "ubuntu-22.04-arm"
-            args: ""
-          - platform: "windows-latest"
-            args: "--target x86_64-pc-windows-msvc"
-            rust_target: "x86_64-pc-windows-msvc"
-          - platform: "windows-11-arm"
-            args: "--target aarch64-pc-windows-msvc"
-            rust_target: "aarch64-pc-windows-msvc"
-
-    runs-on: ${{ matrix.platform }}
+  windows-x64:
+    runs-on: windows-latest
     timeout-minutes: 120
 
     steps:
@@ -39,62 +19,78 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: setup node
+      - name: Setup Node
         uses: actions/setup-node@v7
         with:
           node-version: lts/*
-          cache: "npm"
+          cache: 'npm'
 
-      - name: install Rust stable
+      - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.rust_target }}
+          targets: x86_64-pc-windows-msvc
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: "./backend -> target"
-          key: ${{ matrix.platform }}
+          workspaces: './backend -> target'
+          key: vaso-windows-x64
 
-      - name: install dependencies (ubuntu-22.04 x86_64)
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential curl wget file \
-            libgtk-3-dev libxdo-dev libssl-dev \
-            libappindicator3-dev librsvg2-dev patchelf xdg-utils \
-            libwebkit2gtk-4.1-dev
-
-      - name: install dependencies (ubuntu-22.04-arm)
-        if: matrix.platform == 'ubuntu-22.04-arm'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev patchelf xdg-utils
-
-      - name: install frontend dependencies
+      - name: Install frontend dependencies
         run: npm ci
 
-      - name: Read release version
-        id: release_version
+      - name: Read version
+        id: get_version
         run: node scripts/release-version.cjs backend/desktop/tauri.conf.json
 
-      - uses: tauri-apps/tauri-action@v1
-        env:
-          TAURI_FRONTEND_PATH: ${{ github.workspace }}
-          TAURI_APP_PATH: ${{ github.workspace }}/backend/desktop
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      # Updater artifacts need the authors' TAURI_SIGNING_PRIVATE_KEY, so they are disabled.
+      - name: Write no-updater-artifacts config
+        shell: bash
+        run: echo '{"bundle":{"createUpdaterArtifacts":false}}' > "$RUNNER_TEMP/no-updater.json"
+
+      - name: Build MSI installer (unsigned)
+        shell: bash
+        run: npm run tauri build -- --target x86_64-pc-windows-msvc --bundles msi --config "$RUNNER_TEMP/no-updater.json"
+
+      - name: Build portable executable (unsigned)
+        shell: bash
+        run: npm run tauri build -- --features portable --target x86_64-pc-windows-msvc --no-bundle --config "$RUNNER_TEMP/no-updater.json"
+
+      - name: Package portable ZIP
+        shell: pwsh
+        run: |
+          $version = "${{ steps.get_version.outputs.VERSION }}"
+          $dirName = "RCloneManager"
+          New-Item -ItemType Directory -Force -Path out | Out-Null
+          New-Item -ItemType Directory -Force -Path "$dirName/config" | Out-Null
+          $settingsJson = @'
+          {
+            "app_settings": {
+              "core": {
+                "completed_onboarding": true
+              }
+            }
+          }
+          '@
+          Set-Content -Path "$dirName/config/settings.json" -Value $settingsJson
+          Copy-Item "backend/target/x86_64-pc-windows-msvc/release/rclone-manager.exe" "$dirName/RCloneManager.exe"
+          Get-ChildItem "resources/portable/README_*" -Exclude "*linux*", "*macos*" | ForEach-Object {
+              (Get-Content $_.FullName).Replace('${VERSION}', $version) | Set-Content "$dirName/$($_.Name)"
+          }
+          Compress-Archive -Path $dirName -DestinationPath "out/RCloneManager-portable-windows-x86_64-$version-sk.zip"
+
+      - name: Upload MSI artifact
+        uses: actions/upload-artifact@v7
         with:
-          projectPath: backend/desktop
-          uploadUpdaterSignatures: false
-          tagName: v__VERSION__
-          releaseName: "RClone Manager v__VERSION__"
-          releaseBody: "See the assets to download this version and install."
-          releaseDraft: true
-          prerelease: ${{ steps.release_version.outputs.PRERELEASE }}
-          args: ${{ matrix.args }} -- --locked
+          name: rclone-manager-windows-x64-msi
+          path: backend/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload portable artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: rclone-manager-windows-x64-portable
+          path: out/*.zip
+          if-no-files-found: error
+          retention-days: 30
