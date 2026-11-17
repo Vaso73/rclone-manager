@@ -12,7 +12,7 @@
     </button>
   </div>
   <details>
-    <summary>{{ 'simple.tasks.explanation' | translate }}</summary>
+    <summary>{{ 'simple.history.explanation' | translate }}</summary>
     <p>{{ 'simple.history.help' | translate }}</p>
   </details>
   <p class="truncate" [title]="task().history">{{ task().history }}</p>
@@ -20,7 +20,7 @@
     <button matButton (click)="up()" [disabled]="busy()">
       <mat-icon svgIcon="folder"></mat-icon>{{ 'simple.history.up' | translate }}
     </button>
-    <p>{{ path() }}</p>
+    <p class="truncate" [title]="path()">{{ displayPath() }}</p>
   }
   @if (busy()) {
     <p role="status">{{ 'simple.loading' | translate }}</p>
@@ -31,10 +31,10 @@
   @for (entry of entries(); track entry.Name) {
     <div class="card-row-item">
       <mat-icon [svgIcon]="entry.IsDir ? 'folder' : 'file'"></mat-icon>
-      <span class="truncate" [title]="entry.Name">{{ entry.Name }}</span>
+      <span class="truncate" [title]="entry.Name">{{ archiveLabel(entry.Name) }}</span>
       @if (!entry.IsDir) {
         <span
-          >{{ entry.Size | number }} B ·
+          >{{ entry.Size | number }} B · {{ 'simple.history.modified' | translate }}
           {{ entry.ModTime | date: ('simple.dateFormat' | translate) }}</span
         >
       }

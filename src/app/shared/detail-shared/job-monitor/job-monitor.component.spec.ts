@@ -52,6 +52,17 @@ describe('JobMonitorComponent', () => {
   const speeds = (fixture: ComponentFixture<JobMonitorComponent>): number[] =>
     fixture.componentInstance['speedHistory']();
 
+  it('labels dry-run throughput as comparison and preserves normal transfer labels', () => {
+    const fixture = create(config({ dryRun: true, stats: stats({ speed: 123 }) }));
+    expect(fixture.componentInstance['kpis']().find(kpi => kpi.key === 'speed')?.labelKey).toBe(
+      'shared.monitor.kpi.comparisonSpeed'
+    );
+    fixture.componentRef.setInput('config', config({ dryRun: false }));
+    fixture.detectChanges();
+    expect(fixture.componentInstance['kpis']().find(kpi => kpi.key === 'speed')?.labelKey).toBe(
+      'shared.monitor.kpi.speed'
+    );
+  });
   it('shows the failure text translated, and nothing while the job has not failed', () => {
     const failed = create(config({ error: 'permission denied' }));
     expect(failed.componentInstance['error']()).toBe('PERMISSION DENIED');

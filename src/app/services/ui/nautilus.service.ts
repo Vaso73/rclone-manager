@@ -107,13 +107,14 @@ export class NautilusService extends TauriBaseService {
   });
 
   private pickerOverlayRef: OverlayRef | null = null;
-  private pickerComponentRef: ComponentRef<NautilusComponent> | null = null;
   private isBrowserOpening = false;
   private browserRequest = 0;
   private isPickerOpening = false;
+  private pickerRequest = 0;
+  private pickerClosing = false;
+  private pickerReturnFocus?: HTMLElement;
 
   private browserOverlayRef: OverlayRef | null = null;
-  private browserComponentRef: ComponentRef<NautilusComponent> | null = null;
   private loadRemoteDataInFlight: Promise<void> | null = null;
   private nextLoadRemoteDataPromise: Promise<void> | null = null;
 
@@ -355,11 +356,10 @@ export class NautilusService extends TauriBaseService {
       const { NautilusComponent } =
         await import('src/app/file-browser/nautilus/nautilus.component');
       if (!this.vault.isAccessible() || request !== this.browserRequest) return;
-      const { overlayRef, componentRef } = this.createNautilusOverlay(NautilusComponent, () =>
+      const { overlayRef } = this.createNautilusOverlay(NautilusComponent, () =>
         this.closeBrowserOverlay()
       );
       this.browserOverlayRef = overlayRef;
-      this.browserComponentRef = componentRef;
       this._isBrowserOverlayOpen.set(true);
     } catch (err) {
       console.error('[NautilusService] Failed to open browser overlay:', err);
@@ -373,8 +373,7 @@ export class NautilusService extends TauriBaseService {
     this.browserRequest++;
     this.isBrowserOpening = false;
     this._isBrowserOverlayOpen.set(false);
-    this.animateAndDisposeOverlay(this.browserComponentRef, this.browserOverlayRef);
-    this.browserComponentRef = null;
+    this.browserOverlayRef?.dispose();
     this.browserOverlayRef = null;
   }
 
@@ -391,54 +390,69 @@ export class NautilusService extends TauriBaseService {
     void this.newNautilusWindow(remote || null, relativePath || null);
   }
 
-  async openFilePicker(options: FilePickerConfig): Promise<void> {
-    if (!this.vault.isAccessible()) return;
-    if (this.pickerOverlayRef || this.isPickerOpening) return;
+  async openFilePicker(options: FilePickerConfig): Promise<boolean> {
+    if (!this.vault.isAccessible() || this.pickerOverlayRef || this.isPickerOpening) return false;
     this.isPickerOpening = true;
+    this.pickerReturnFocus =
+      document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
+    const request = ++this.pickerRequest;
     try {
       this._filePickerState.set({
         isOpen: true,
         options: { ...options, requestId: options.requestId ?? generatePrefixedId('picker') },
       });
-      await this.createPickerOverlay();
-      if (!this.pickerOverlayRef) return;
+      await this.createPickerOverlay(request);
+      if (request !== this.pickerRequest || !this.pickerOverlayRef) return false;
       this.releasePickerHistory = this.navigationHistory.openLayer(() =>
         this.closeFilePicker(null)
       );
+      return true;
     } catch (err) {
+      if (request === this.pickerRequest) this.closeFilePicker(null, false);
       console.error('[NautilusService] Failed to open file picker:', err);
-      this._filePickerState.set({ isOpen: false });
+      throw err;
     } finally {
-      this.isPickerOpening = false;
+      if (request === this.pickerRequest) this.isPickerOpening = false;
     }
   }
 
-  closeFilePicker(result: FileBrowserItem[] | null): void {
+  closeFilePicker(result: FileBrowserItem[] | null, notify = true): void {
+    const state = this._filePickerState();
+    if (!state.isOpen || this.pickerClosing) return;
+    this.pickerClosing = true;
+    ++this.pickerRequest;
+    this.isPickerOpening = false;
     this.releasePickerHistory?.();
     this.releasePickerHistory = undefined;
-    const requestId = this._filePickerState().options?.requestId;
     const items = result ?? [];
-
-    this._filePickerResult.next({
+    const response: FilePickerResult = {
       cancelled: result === null,
       items,
       paths: items.map(i => {
         const remoteRoot = this.lookupRemoteByName(i.meta.remote);
         return this.pathService.getFullDisplayPath(
-          remoteRoot ?? {
-            name: i.meta.remote,
-            isLocal: i.meta.isLocal,
-          },
+          remoteRoot ?? { name: i.meta.remote, isLocal: i.meta.isLocal },
           i.entry.Path
         );
       }),
-      requestId,
-    });
-
-    this._filePickerState.set({ isOpen: false });
-    this.animateAndDisposeOverlay(this.pickerComponentRef, this.pickerOverlayRef);
-    this.pickerComponentRef = null;
+      requestId: state.options?.requestId,
+    };
+    // Destroy the picker while it is still in picker mode. Switching modes during an exit
+    // animation reflows its sidebar over the form, particularly in Windows WebView2.
+    const overlay = this.pickerOverlayRef;
     this.pickerOverlayRef = null;
+    overlay?.dispose();
+    const returnFocus = this.pickerReturnFocus;
+    this.pickerReturnFocus = undefined;
+    this.pickerClosing = false;
+    this._filePickerState.set({ isOpen: false });
+    if (notify) this._filePickerResult.next(response);
+    // Consumers re-enable their opening button after receiving the result.
+    if (returnFocus)
+      requestAnimationFrame(() => {
+        if (returnFocus.isConnected && !this._filePickerState().isOpen)
+          returnFocus.focus({ preventScroll: true });
+      });
   }
 
   isSaved(type: CollectionType, remote: string, path: string): boolean {
@@ -575,6 +589,8 @@ export class NautilusService extends TauriBaseService {
   ): { overlayRef: OverlayRef; componentRef: ComponentRef<NautilusComponent> } {
     const overlayRef = this.overlay.create({
       positionStrategy: this.overlay.position().global().centerHorizontally().centerVertically(),
+      width: '100vw',
+      height: '100dvh',
       scrollStrategy: this.overlay.scrollStrategies.block(),
     });
 
@@ -595,28 +611,18 @@ export class NautilusService extends TauriBaseService {
     return { overlayRef, componentRef };
   }
 
-  private async createPickerOverlay(): Promise<void> {
+  private async createPickerOverlay(request: number): Promise<void> {
     const { NautilusComponent } = await import('src/app/file-browser/nautilus/nautilus.component');
-    if (!this.vault.isAccessible() || !this._filePickerState().isOpen) return;
-    const { overlayRef, componentRef } = this.createNautilusOverlay<FileBrowserItem[] | null>(
+    if (
+      !this.vault.isAccessible() ||
+      !this._filePickerState().isOpen ||
+      request !== this.pickerRequest
+    )
+      return;
+    const { overlayRef } = this.createNautilusOverlay<FileBrowserItem[] | null>(
       NautilusComponent,
       items => this.closeFilePicker(items ?? null)
     );
     this.pickerOverlayRef = overlayRef;
-    this.pickerComponentRef = componentRef;
-  }
-
-  private animateAndDisposeOverlay(
-    componentRef: ComponentRef<unknown> | null,
-    overlayRef: OverlayRef | null
-  ): void {
-    if (!overlayRef) return;
-    if (!this.vault.isAccessible() || !componentRef) {
-      overlayRef.dispose();
-      return;
-    }
-    const element = componentRef.location?.nativeElement as HTMLElement | undefined;
-    element?.classList.add('slide-overlay-leave');
-    setTimeout(() => overlayRef.dispose(), 200);
   }
 }

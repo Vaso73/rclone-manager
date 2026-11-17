@@ -38,6 +38,7 @@ export interface RemoteSettingsSection {
 }
 
 export interface MountedSettings {
+  volume_name?: string | null;
   source: string;
   network_mode: boolean | null;
   read_only: boolean | null;

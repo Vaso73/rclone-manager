@@ -15,6 +15,7 @@ import {
   extractProfileDest,
 } from '../shared/utils/profile-config.util';
 
+import { simpleHistoryError } from './simple-history-path.util';
 import { normalizeRemoteName } from '../shared/utils/path.utils';
 
 export const SIMPLE_OPERATIONS = [
@@ -29,6 +30,7 @@ export const SIMPLE_OPERATIONS = [
 export type SimpleOperation = (typeof SIMPLE_OPERATIONS)[number];
 export type SimpleSchedule = 'manual' | 'startup' | 'daily' | 'custom';
 export interface SimpleTask {
+  displayName?: string;
   remote: string;
   name: string;
   operation: SimpleOperation;
@@ -39,6 +41,7 @@ export interface SimpleTask {
   multipleSources: boolean;
 }
 export interface SimpleTaskDraft {
+  volumeName?: string;
   name: string;
   operation: SimpleOperation;
   source: string;
@@ -71,6 +74,7 @@ export function listSimpleTasks(remote: string, settings: RemoteSettings): Simpl
         {
           remote,
           name,
+          displayName: getAppCfg(config)?.displayName || name,
           operation,
           config,
           source: sources[0],
@@ -84,8 +88,12 @@ export function listSimpleTasks(remote: string, settings: RemoteSettings): Simpl
 }
 
 /** Empty destinations must never expose a runnable default profile. */
-export function simpleTaskReady(task: SimpleTask): boolean {
-  return !!task.source.trim() && (task.operation === 'serve' || !!task.destination.trim());
+export function simpleTaskReady(task: SimpleTask, windows = false): boolean {
+  return (
+    !!task.source.trim() &&
+    (task.operation === 'serve' || !!task.destination.trim()) &&
+    !simpleHistoryError(task.source, task.destination, task.history, windows)
+  );
 }
 
 export function simpleTaskMount(
@@ -185,7 +193,8 @@ export function patchSimpleProfile(
   settings: RemoteSettings = {},
   applyMountOptions = false
 ): ProfileConfig {
-  const app: AppConfig = { ...getAppCfg(existing) };
+  const app: AppConfig = { ...getAppCfg(existing), simpleCreated: true };
+  if (draft.operation === 'mount') app.displayName = draft.name.trim();
   const rclone: NonNullable<ProfileConfig['rclone']> = { ...getRcloneCfg(existing) };
   if (!draft.source.trim() || (!draft.destination.trim() && draft.operation !== 'serve'))
     throw new Error('simple.errors.paths');
@@ -195,6 +204,15 @@ export function patchSimpleProfile(
   } else if (draft.operation === 'mount') {
     rclone.fs = draft.source.trim();
     rclone.mountPoint = draft.destination.trim();
+    if (draft.volumeName !== undefined && draft.volumeName !== simpleVolumeName(existing)) {
+      const block = rclone['mountOpt'];
+      rclone['mountOpt'] = {
+        ...(block && typeof block === 'object' ? block : {}),
+        VolName: draft.volumeName.trim(),
+      };
+      for (const alias of ['volname', 'vol_name', 'vol-name'])
+        if (Object.hasOwn(rclone, alias)) rclone[alias] = draft.volumeName.trim();
+    }
     const original = simpleMountOptions(existing, settings);
     if (!existing || applyMountOptions || original.networkDrive !== draft.networkDrive)
       setMountOption(
@@ -313,6 +331,7 @@ export function patchSimpleMountVfs(
 }
 
 export interface SimpleMountPlan {
+  volumeName?: string;
   source: string;
   destination: string;
   networkDrive: boolean;
@@ -334,6 +353,7 @@ export function simpleMountPending(
     return /^[a-z]:/i.test(path) ? path.replace(/\\/g, '/').toLowerCase() : path;
   };
   if (
+    (plan.volumeName !== undefined && plan.volumeName !== (mount.settings?.volume_name ?? '')) ||
     point(mount.mount_point) !== point(plan.destination.trim()) ||
     source(mount.settings?.source ?? mount.fs) !== source(plan.source)
   )
@@ -346,4 +366,51 @@ export function simpleMountPending(
     return true;
   if (options?.network_mode == null || options.read_only == null) return undefined;
   return false;
+}
+
+/** The saved Windows volume label is separate from a stable application profile key. */
+export function simpleVolumeName(config: ProfileConfig | undefined): string {
+  const rc = getRcloneCfg(config);
+  const block = rc?.['mountOpt'];
+  const nested = block && typeof block === 'object' ? (block as Record<string, unknown>) : {};
+  const value = nested['VolName'] ?? rc?.['volname'] ?? rc?.['vol_name'] ?? rc?.['vol-name'];
+  return typeof value === 'string' ? value : '';
+}
+
+/** A collapsed presentation group, never a deletion/migration of legacy profiles. */
+export function simpleTaskTemplate(task: SimpleTask): boolean {
+  if (
+    task.name.toLowerCase() !== DEFAULT_PROFILE_NAME.toLowerCase() ||
+    task.source !== task.remote + ':' ||
+    task.destination ||
+    task.history
+  )
+    return false;
+  const app = getAppCfg(task.config);
+  if (
+    app?.simpleCreated ||
+    app?.displayName ||
+    app?.autoStart ||
+    app?.cronEnabled ||
+    app?.watchEnabled ||
+    app?.useVss
+  )
+    return false;
+  for (const key of [
+    'filterProfile',
+    'backendProfile',
+    'vfsProfile',
+    'runtimeRemoteProfile',
+  ] as const)
+    if (app?.[key] && app[key] !== DEFAULT_PROFILE_NAME) return false;
+  const rc = getRcloneCfg(task.config) ?? {};
+  const paths = new Set(['fs', 'srcFs', 'path1', 'dstFs', 'path2']);
+  return Object.entries(rc).every(
+    ([key, value]) =>
+      paths.has(key) ||
+      value == null ||
+      value === false ||
+      value === '' ||
+      (key === 'type' && value === 'http')
+  );
 }

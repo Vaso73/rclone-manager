@@ -291,6 +291,23 @@ export class RemoteFacadeService {
     );
   }
 
+  async deleteTaskProfile(
+    remoteName: string,
+    operation: string,
+    profileName: string,
+    expected: unknown,
+    backendName: string
+  ): Promise<void> {
+    await this.appSettingsService.deleteRemoteProfile({
+      remoteName,
+      operation,
+      profileName,
+      expected,
+      backendName,
+    });
+    await this.remoteService.getRemotes();
+  }
+
   async updateRemoteSettings(remoteName: string, updates: Partial<RemoteSettings>): Promise<void> {
     try {
       await this.appSettingsService.saveRemoteSettings(remoteName, updates);

@@ -20,7 +20,12 @@
         ><mat-label>{{
           (draft.operation === 'mount' ? 'simple.drives.name' : 'simple.tasks.name') | translate
         }}</mat-label
-        ><input matInput name="name" [(ngModel)]="draft.name" [readonly]="!!task()" required
+        ><input
+          matInput
+          name="name"
+          [(ngModel)]="draft.name"
+          [readonly]="!!task() && draft.operation !== 'mount'"
+          required
       /></mat-form-field>
       @if (draft.operation !== 'mount') {
         <mat-form-field
@@ -34,25 +39,64 @@
       }
     </div>
     <details>
-      <summary>{{ 'simple.tasks.explanation' | translate }}</summary>
+      <summary>
+        {{
+          (draft.operation === 'mount' ? 'simple.drives.explanation' : 'simple.tasks.explanation')
+            | translate
+        }}
+      </summary>
       <p>{{ operationHint() }}</p>
     </details>
-    <div class="path-field">
+    <p>{{ 'simple.tasks.owner' | translate: { remote: remote() } }}</p>
+    @if (draft.operation === 'mount') {
       <mat-form-field
-        ><mat-label>{{
-          (draft.operation === 'mount' ? 'simple.drives.source' : 'simple.tasks.source') | translate
-        }}</mat-label
-        ><input matInput name="source" [(ngModel)]="draft.source" required
-      /></mat-form-field>
-      <button
-        matIconButton
-        type="button"
-        (click)="pick('source')"
-        [title]="'simple.tasks.browse' | translate"
-      >
-        <mat-icon svgIcon="folder-open"></mat-icon>
-      </button>
-    </div>
+        ><mat-label>{{ 'simple.drives.storage' | translate }}</mat-label>
+        <input matInput [value]="remote()" readonly />
+      </mat-form-field>
+      <div class="path-field">
+        <mat-form-field
+          ><mat-label>{{ 'simple.drives.subfolder' | translate }}</mat-label>
+          <input matInput name="mountFolder" [(ngModel)]="mountFolder" />
+          <mat-hint>{{ 'simple.drives.subfolderHelp' | translate }}</mat-hint>
+        </mat-form-field>
+        <button
+          matIconButton
+          type="button"
+          (click)="pick('source')"
+          [disabled]="busy() || picking()"
+          [title]="'simple.tasks.browse' | translate"
+          [attr.aria-label]="'simple.tasks.browse' | translate"
+        >
+          <mat-icon svgIcon="folder-open"></mat-icon>
+        </button>
+      </div>
+      @if (sourceError()) {
+        <p role="alert" data-tone="warn">{{ 'simple.errors.mountSource' | translate }}</p>
+      }
+      @if (backend.isWindows()) {
+        <mat-form-field
+          ><mat-label>{{ 'simple.drives.volumeName' | translate }}</mat-label>
+          <input matInput name="volumeName" [(ngModel)]="draft.volumeName" />
+          <mat-hint>{{ 'simple.drives.volumeNameHelp' | translate }}</mat-hint>
+        </mat-form-field>
+      }
+    } @else {
+      <div class="path-field">
+        <mat-form-field
+          ><mat-label>{{ 'simple.tasks.source' | translate }}</mat-label
+          ><input matInput name="source" [(ngModel)]="draft.source" required
+        /></mat-form-field>
+        <button
+          matIconButton
+          type="button"
+          (click)="pick('source')"
+          [disabled]="busy() || picking()"
+          [title]="'simple.tasks.browse' | translate"
+        >
+          <mat-icon svgIcon="folder-open"></mat-icon>
+        </button>
+      </div>
+    }
     @if (
       draft.operation !== 'serve' &&
       !(draft.operation === 'mount' && backend.isWindows() && mountLocation === 'letter')
@@ -70,6 +114,7 @@
             matIconButton
             type="button"
             (click)="pick('destination')"
+            [disabled]="busy() || picking()"
             [title]="'simple.tasks.browse' | translate"
           >
             <mat-icon svgIcon="folder-open"></mat-icon>
@@ -132,10 +177,12 @@
       </details>
       <app-simple-disk-state
         [active]="mounted()"
+        [refreshing]="mounts.refreshing()"
         [source]="draft.source"
         [destination]="draft.destination"
         [networkDrive]="draft.networkDrive"
         [readOnly]="draft.readOnly"
+        [volumeName]="draft.volumeName ?? ''"
       ></app-simple-disk-state>
       @if (needsReconnect()) {
         <p>{{ 'simple.drives.reconnectHelp' | translate }}</p>
@@ -170,12 +217,16 @@
           matIconButton
           type="button"
           (click)="pick('history')"
+          [disabled]="busy() || picking()"
           [title]="'simple.tasks.browse' | translate"
         >
           <mat-icon svgIcon="folder-open"></mat-icon>
         </button>
       </div>
       <p>{{ 'simple.history.help' | translate }}</p>
+      @if (historyError(); as error) {
+        <p role="alert" data-tone="warn">{{ error | translate }}</p>
+      }
       @if (vss.supported() && ['sync', 'copy'].includes(draft.operation)) {
         <mat-checkbox name="vss" [(ngModel)]="draft.useVss">{{
           'simple.tasks.vss' | translate
@@ -237,7 +288,9 @@
       [matButton]="needsReconnect() ? 'text' : 'filled'"
       type="submit"
       data-tone="primary"
-      [disabled]="busy() || !!task()?.multipleSources"
+      [disabled]="
+        busy() || picking() || !!task()?.multipleSources || sourceError() || !!historyError()
+      "
     >
       {{
         (draft.operation === 'mount'
@@ -254,7 +307,9 @@
         type="button"
         data-tone="primary"
         (click)="save(true)"
-        [disabled]="busy() || !!task()?.multipleSources"
+        [disabled]="
+          busy() || picking() || !!task()?.multipleSources || sourceError() || !!historyError()
+        "
       >
         {{ 'simple.drives.saveReconnect' | translate }}
       </button>

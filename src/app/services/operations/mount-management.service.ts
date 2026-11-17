@@ -11,6 +11,8 @@ import { groupBy } from '../remote/utils/remote-config.utils';
   providedIn: 'root',
 })
 export class MountManagementService extends TauriBaseService {
+  private refreshRequest = 0;
+  readonly refreshing = signal(false);
   private readonly _mountedRemotes = signal<MountedRemote[]>([]);
   public readonly mountedRemotes = this._mountedRemotes.asReadonly();
 
@@ -47,6 +49,16 @@ export class MountManagementService extends TauriBaseService {
   }
 
   private initializeEventListeners(): void {
+    this.eventListeners
+      .listenToBackendSwitched()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        ++this.refreshRequest;
+        this._mountedRemotes.set([]);
+        void this.getMountedRemotes().catch(error =>
+          console.error('Failed to refresh disk connections:', error)
+        );
+      });
     merge(
       this.eventListeners.listenToMountCacheUpdated(),
       this.eventListeners.listenToRcloneEngineReady()
@@ -60,9 +72,18 @@ export class MountManagementService extends TauriBaseService {
   }
 
   async getMountedRemotes(): Promise<MountedRemote[]> {
-    const mountedRemotes = await this.invokeCommand<MountedRemote[]>('get_cached_mounted_remotes');
-    this._mountedRemotes.set(mountedRemotes);
-    return mountedRemotes;
+    const request = ++this.refreshRequest;
+    this.refreshing.set(true);
+    try {
+      const mountedRemotes = await this.invokeCommand<MountedRemote[]>(
+        'get_cached_mounted_remotes'
+      );
+      if (request === this.refreshRequest && !this.destroyRef.destroyed)
+        this._mountedRemotes.set(mountedRemotes);
+      return mountedRemotes;
+    } finally {
+      if (request === this.refreshRequest && !this.destroyRef.destroyed) this.refreshing.set(false);
+    }
   }
 
   async mountRemoteProfile(

@@ -58,6 +58,7 @@ describe('simple workspace actions', () => {
   const localDrives = vi.fn();
   const stopJob = vi.fn();
   const reconnect = vi.fn();
+  const removeProfile = vi.fn();
   const refreshMounts = vi.fn();
   beforeEach(() => {
     vi.resetAllMocks();
@@ -83,7 +84,11 @@ describe('simple workspace actions', () => {
       providers: [
         {
           provide: MountManagementService,
-          useValue: { reconnectRemoteProfile: reconnect, getMountedRemotes: refreshMounts },
+          useValue: {
+            reconnectRemoteProfile: reconnect,
+            getMountedRemotes: refreshMounts,
+            refreshing: signal(false),
+          },
         },
         { provide: RemoteManagementService, useValue: { getLocalDrives: localDrives } },
         { provide: IconService, useValue: { getIconName: (): string => 'cloud' } },
@@ -95,6 +100,7 @@ describe('simple workspace actions', () => {
             getRemoteSettings: (): typeof settings => settings,
             isRemoteActive: (): boolean => true,
             updateRemoteSettings: save,
+            deleteTaskProfile: removeProfile,
             startJob,
             stopJob,
             checkMountPathCollision: collision,
@@ -216,6 +222,39 @@ describe('simple workspace actions', () => {
     expect(startProfileBatch).not.toHaveBeenCalled();
   });
 
+  it('deletes only the confirmed task identity and never runs file operations', async () => {
+    const c = TestBed.runInInjectionContext(() => new SimpleWorkspaceComponent());
+    await c.remove(task);
+    expect(removeProfile).toHaveBeenCalledExactlyOnceWith(
+      'NAS',
+      'sync',
+      'Backup',
+      task.config,
+      'Local'
+    );
+    expect(transfer).not.toHaveBeenCalled();
+    expect(startProfileBatch).not.toHaveBeenCalled();
+  });
+  it('does not delete after cancellation or a backend switch during confirmation', async () => {
+    const c = TestBed.runInInjectionContext(() => new SimpleWorkspaceComponent());
+    confirm.mockResolvedValueOnce(false);
+    await c.remove(task);
+    expect(removeProfile).not.toHaveBeenCalled();
+    confirm.mockImplementationOnce(async () => {
+      activeBackend.set('Other');
+      return true;
+    });
+    await c.remove(task);
+    expect(removeProfile).not.toHaveBeenCalled();
+  });
+  it('rejects invalid history before persisting or starting anything', async () => {
+    const c = await editorFixture();
+    c.draft.history = 'D:\\';
+    await c.save();
+    expect(c.error()).toBe('backendErrors.backup.historySameFilesystem');
+    expect(save).not.toHaveBeenCalled();
+    expect(startProfileBatch).not.toHaveBeenCalled();
+  });
   async function editorFixture(multipleSources = false): Promise<SimpleTaskEditorComponent> {
     TestBed.overrideComponent(SimpleTaskEditorComponent, { set: { template: '', imports: [] } });
     const fixture = TestBed.createComponent(SimpleTaskEditorComponent);

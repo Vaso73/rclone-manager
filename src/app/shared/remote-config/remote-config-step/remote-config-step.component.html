@@ -356,6 +356,20 @@
                   [type]="item.IsPassword ? 'password' : item.Name === 'port' ? 'number' : 'text'"
                   [attr.autocomplete]="item.IsPassword ? 'new-password' : null"
                 />
+                @if (item.Name === 'key_file') {
+                  <button
+                    matIconButton
+                    matSuffix
+                    type="button"
+                    class="action-button"
+                    (click)="pickSshKey()"
+                    [disabled]="keyPicking() || disabled() || isLoading()"
+                    [title]="'simple.sftp.chooseKey' | translate"
+                    [attr.aria-label]="'simple.sftp.chooseKey' | translate"
+                  >
+                    <mat-icon svgIcon="folder-open"></mat-icon>
+                  </button>
+                }
                 @if (form().get(item.Name)?.hasError('required')) {
                   <mat-error>{{ 'simple.sftp.required' | translate }}</mat-error>
                 }

@@ -192,6 +192,16 @@ export class AppSettingsService extends TauriBaseService {
   /**
    * Save remote-specific settings
    */
+  async deleteRemoteProfile(params: {
+    backendName: string;
+    remoteName: string;
+    operation: string;
+    profileName: string;
+    expected: unknown;
+  }): Promise<void> {
+    return this.invokeCommand('delete_remote_profile', { params });
+  }
+
   async saveRemoteSettings(
     remoteName: string,
     settings: Record<string, unknown>,

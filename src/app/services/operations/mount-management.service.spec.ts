@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Subject } from 'rxjs';
 import { provideTranslateService } from '@ngx-translate/core';
 import { MountManagementService } from './mount-management.service';
@@ -7,6 +7,7 @@ import { ApiClientService } from '../infrastructure/platform/api-client.service'
 import { EventListenersService } from '../infrastructure/system/event-listeners.service';
 import { PathService } from '../infrastructure/platform/path.service';
 import { NotificationService } from '../ui/notification.service';
+import { BackendService } from '../infrastructure/system/backend.service';
 import type { MountedRemote } from '@app/types';
 
 describe('MountManagementService', () => {
@@ -24,6 +25,7 @@ describe('MountManagementService', () => {
     TestBed.configureTestingModule({
       providers: [
         provideTranslateService(),
+        { provide: BackendService, useValue: { isWindows: (): boolean => true } },
         { provide: NotificationService, useValue: { showSuccess: vi.fn(), showError: vi.fn() } },
         { provide: ApiClientService, useValue: { invoke } },
         {
@@ -31,6 +33,7 @@ describe('MountManagementService', () => {
           useValue: {
             listenToMountCacheUpdated: vi.fn().mockReturnValue(mountCacheUpdated),
             listenToRcloneEngineReady: vi.fn().mockReturnValue(engineReady),
+            listenToBackendSwitched: (): Subject<string> => new Subject<string>(),
           },
         },
         {
@@ -73,6 +76,7 @@ describe('MountManagementService', () => {
     TestBed.configureTestingModule({
       providers: [
         provideTranslateService(),
+        { provide: BackendService, useValue: { isWindows: (): boolean => true } },
         { provide: NotificationService, useValue: { showSuccess: vi.fn(), showError: vi.fn() } },
         { provide: ApiClientService, useValue: { invoke } },
         {
@@ -80,6 +84,7 @@ describe('MountManagementService', () => {
           useValue: {
             listenToMountCacheUpdated: vi.fn().mockReturnValue(mountCacheUpdated),
             listenToRcloneEngineReady: vi.fn().mockReturnValue(engineReady),
+            listenToBackendSwitched: (): Subject<string> => new Subject<string>(),
           },
         },
         { provide: PathService, useValue: { getRemoteNameFromFs: (fs: string): string => fs } },
@@ -122,5 +127,77 @@ describe('MountManagementService', () => {
     expect(invoke).toHaveBeenCalledTimes(1);
     expect(TestBed.inject(NotificationService).showError).toHaveBeenCalled();
     expect(TestBed.inject(NotificationService).showSuccess).not.toHaveBeenCalled();
+  });
+});
+
+describe('Mount state refresh ordering', () => {
+  const invoke = vi.fn();
+  const switched = new Subject<string>();
+  beforeEach(() => {
+    invoke.mockResolvedValue([]);
+    TestBed.configureTestingModule({
+      providers: [
+        provideTranslateService(),
+        { provide: ApiClientService, useValue: { invoke } },
+        { provide: NotificationService, useValue: { showError: vi.fn() } },
+        { provide: BackendService, useValue: { isWindows: (): boolean => true } },
+        {
+          provide: EventListenersService,
+          useValue: {
+            listenToMountCacheUpdated: (): Subject<void> => new Subject<void>(),
+            listenToRcloneEngineReady: (): Subject<void> => new Subject<void>(),
+            listenToBackendSwitched: (): Subject<string> => switched,
+          },
+        },
+      ],
+    });
+  });
+  afterEach(() => {
+    TestBed.resetTestingModule();
+    vi.restoreAllMocks();
+  });
+  it('does not replace fresh connected state with an older empty snapshot', async () => {
+    const service = TestBed.inject(MountManagementService);
+    await Promise.resolve();
+    let old!: (value: MountedRemote[]) => void;
+    let current!: (value: MountedRemote[]) => void;
+    invoke
+      .mockReturnValueOnce(
+        new Promise<MountedRemote[]>(resolve => {
+          old = resolve;
+        })
+      )
+      .mockReturnValueOnce(
+        new Promise<MountedRemote[]>(resolve => {
+          current = resolve;
+        })
+      );
+    const first = service.getMountedRemotes(),
+      second = service.getMountedRemotes();
+    const disk = { fs: 'NAS:', mount_point: 'W:' };
+    current([disk]);
+    await second;
+    old([]);
+    await first;
+    expect(service.mountedRemotes()).toEqual([disk]);
+    expect(service.refreshing()).toBe(false);
+  });
+  it('discards a pending snapshot from the previous backend', async () => {
+    const service = TestBed.inject(MountManagementService);
+    await Promise.resolve();
+    let complete!: (value: MountedRemote[]) => void;
+    invoke
+      .mockReturnValueOnce(
+        new Promise<MountedRemote[]>(resolve => {
+          complete = resolve;
+        })
+      )
+      .mockResolvedValueOnce([]);
+    const pending = service.getMountedRemotes();
+    switched.next('Other');
+    await Promise.resolve();
+    complete([{ fs: 'Old:', mount_point: 'Z:' }]);
+    await pending;
+    expect(service.mountedRemotes()).toEqual([]);
   });
 });

@@ -1,5 +1,7 @@
 import {
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  DestroyRef,
   Component,
   OnInit,
   inject,
@@ -21,6 +23,7 @@ import { BackendService } from '../services/infrastructure/system/backend.servic
 import { FileSystemService } from '../services/operations/file-system.service';
 import { WindowsVssService } from '../services/operations/windows-vss.service';
 import { MountManagementService } from '../services/operations/mount-management.service';
+import { simpleHistoryError } from './simple-history-path.util';
 import { SimpleDiskStateComponent } from './simple-disk-state.component';
 import { RemoteManagementService } from '../services/remote/remote-management.service';
 import { NotificationService } from '../services/ui/notification.service';
@@ -36,6 +39,8 @@ import {
   simpleTaskMount,
   patchSimpleMountVfs,
   simpleMountPending,
+  simpleVolumeName,
+  splitSimplePath,
 } from './simple-profile.util';
 
 @Component({
@@ -60,8 +65,37 @@ export class SimpleTaskEditorComponent implements OnInit {
   readonly vss = inject(WindowsVssService);
   readonly backend = inject(BackendService);
   private readonly files = inject(FileSystemService);
+  private readonly changeDetector = inject(ChangeDetectorRef);
+  private readonly destroyRef = inject(DestroyRef);
+  readonly picking = signal(false);
+  get mountFolder(): string {
+    return splitSimplePath(this.draft.source).path;
+  }
+  set mountFolder(path: string) {
+    this.draft.source = this.remote() + ':' + path;
+  }
+  historyError(): string {
+    return ['sync', 'copy', 'move'].includes(this.draft.operation)
+      ? simpleHistoryError(
+          this.draft.source,
+          this.draft.destination,
+          this.draft.history,
+          this.backend.isWindows()
+        )
+      : '';
+  }
+  sourceError(): boolean {
+    if (this.draft.operation !== 'mount') return false;
+    const path = splitSimplePath(this.draft.source);
+    return (
+      path.remote !== this.remote() ||
+      (/^[\\/]/.test(path.path) && this.draft.source !== this.task()?.source) ||
+      path.path.split(/[\\/]/).includes('..')
+    );
+  }
+  private pickerRequest = 0;
   private readonly remotes = inject(RemoteManagementService);
-  private readonly mounts = inject(MountManagementService);
+  readonly mounts = inject(MountManagementService);
   private readonly notifications = inject(NotificationService);
   private readonly translate = inject(TranslateService);
   readonly remote = input.required<string>();
@@ -121,6 +155,7 @@ export class SimpleTaskEditorComponent implements OnInit {
   }
   draft: SimpleTaskDraft = {
     name: '',
+    volumeName: '',
     operation: 'sync',
     source: '',
     destination: '',
@@ -143,7 +178,8 @@ export class SimpleTaskEditorComponent implements OnInit {
     this.draft = {
       ...this.draft,
       operation: task?.operation ?? this.operation(),
-      name: task?.name ?? '',
+      name: task?.displayName ?? task?.name ?? '',
+      volumeName: simpleVolumeName(task?.config),
       source: task?.source ?? (this.operation() === 'mount' ? this.remote() + ':' : ''),
       destination: task?.destination ?? '',
       history: task?.history ?? '',
@@ -165,16 +201,45 @@ export class SimpleTaskEditorComponent implements OnInit {
   }
 
   async pick(field: 'source' | 'destination' | 'history'): Promise<void> {
+    if (this.picking() || this.busy()) return;
+    const request = ++this.pickerRequest;
+    this.picking.set(true);
     try {
       const result = await this.files.selectPathWithNautilus({
-        mode: 'both',
+        mode:
+          this.draft.operation === 'mount' && field === 'source'
+            ? 'remote'
+            : field === 'history' && splitSimplePath(this.draft.destination).remote
+              ? 'remote'
+              : 'both',
+        allowedRemotes:
+          this.draft.operation === 'mount' && field === 'source'
+            ? [this.remote()]
+            : field === 'history' && splitSimplePath(this.draft.destination).remote
+              ? [splitSimplePath(this.draft.destination).remote]
+              : undefined,
         selection: 'folders',
         multi: false,
+        initialLocation:
+          this.draft[field] || (field === 'history' ? this.draft.destination : undefined),
       });
-      if (!result.cancelled && result.paths[0] && this.scope === this.backend.activeBackend())
+      if (this.destroyRef.destroyed || request !== this.pickerRequest) return;
+      if (!result.cancelled && result.paths[0] && this.scope === this.backend.activeBackend()) {
+        if (
+          this.draft.operation === 'mount' &&
+          field === 'source' &&
+          splitSimplePath(result.paths[0]).remote !== this.remote()
+        ) {
+          this.error.set('simple.errors.mountSource');
+          return;
+        }
         this.draft[field] = result.paths[0];
+      }
+      this.changeDetector.markForCheck();
     } catch (error) {
-      this.notifications.showError(error);
+      if (!this.destroyRef.destroyed) this.notifications.showError(error);
+    } finally {
+      if (!this.destroyRef.destroyed && request === this.pickerRequest) this.picking.set(false);
     }
   }
 
@@ -197,8 +262,20 @@ export class SimpleTaskEditorComponent implements OnInit {
       this.error.set('simple.tasks.complex');
       return;
     }
-    const name = this.draft.name.trim();
-    if (!name || Array.from(name).some(char => char.charCodeAt(0) < 32)) {
+    if (this.sourceError()) {
+      this.error.set('simple.errors.mountSource');
+      return;
+    }
+    const historyError = this.historyError();
+    if (historyError) {
+      this.error.set(historyError);
+      return;
+    }
+    const name = this.task()?.name ?? this.draft.name.trim();
+    if (
+      !this.draft.name.trim() ||
+      Array.from(this.draft.name).some(char => char.charCodeAt(0) < 32)
+    ) {
       this.error.set('simple.errors.name');
       return;
     }
@@ -210,7 +287,9 @@ export class SimpleTaskEditorComponent implements OnInit {
     }
     if (
       this.task() &&
-      (name !== this.task()?.name || this.draft.operation !== this.task()?.operation)
+      ((this.draft.operation !== 'mount' &&
+        this.draft.name !== (this.task()?.displayName ?? this.task()?.name)) ||
+        this.draft.operation !== this.task()?.operation)
     ) {
       this.error.set('simple.errors.name');
       return;

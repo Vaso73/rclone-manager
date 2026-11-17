@@ -28,6 +28,74 @@ pub async fn save_remote_settings(
     settings: Value,
     backend_name: Option<String>,
 ) -> Result<(), String> {
+    save_remote_settings_impl(app, remote_name, settings, backend_name, None).await
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteRemoteProfile {
+    pub backend_name: String,
+    pub remote_name: String,
+    pub operation: OperationType,
+    pub profile_name: String,
+    pub expected: Value,
+}
+
+/// Delete only the requested operation/profile, preserving data and completed job history.
+pub async fn delete_remote_profile(
+    app: AppHandle,
+    params: DeleteRemoteProfile,
+) -> Result<(), String> {
+    save_remote_settings_impl(
+        app,
+        params.remote_name.clone(),
+        serde_json::json!({}),
+        Some(params.backend_name.clone()),
+        Some(params),
+    )
+    .await
+}
+
+fn profile_group_matches(group: &str, operation: &str, remote: &str, profile: &str) -> bool {
+    let prefix = format!("{operation}/{}/{profile}", remote.trim_end_matches(':'));
+    group == prefix
+        || group.strip_prefix(&(prefix + "_")).is_some_and(|suffix| {
+            suffix.len() == 32 && suffix.bytes().all(|b| b.is_ascii_hexdigit())
+        })
+}
+
+fn without_profile(
+    existing: &Value,
+    params: &DeleteRemoteProfile,
+    in_use: bool,
+) -> Result<Value, String> {
+    if in_use {
+        return Err(crate::localized_error!(
+            "backendErrors.settings.profileInUse"
+        ));
+    }
+    let key = params.operation.config_key();
+    let mut profiles = existing
+        .get(key)
+        .and_then(Value::as_object)
+        .cloned()
+        .ok_or_else(|| crate::localized_error!("backendErrors.settings.profileChanged"))?;
+    if profiles.get(&params.profile_name) != Some(&params.expected) {
+        return Err(crate::localized_error!(
+            "backendErrors.settings.profileChanged"
+        ));
+    }
+    profiles.remove(&params.profile_name);
+    Ok(serde_json::json!({ key: profiles }))
+}
+
+async fn save_remote_settings_impl(
+    app: AppHandle,
+    remote_name: String,
+    mut settings: Value,
+    backend_name: Option<String>,
+    deletion: Option<DeleteRemoteProfile>,
+) -> Result<(), String> {
     let backend_manager = app.state::<crate::rclone::backend::BackendManager>();
     let _selection = backend_manager.switch_lock.lock().await;
     let backend = backend_manager.get_active().await;
@@ -51,6 +119,44 @@ pub async fn save_remote_settings(
         },
     )
     .await?;
+    if let Some(params) = &deletion {
+        let cache = backend_manager.remote_cache().await;
+        let in_use = match params.operation {
+            OperationType::Mount => cache
+                .find_mount_by_profile(&remote_name, &params.profile_name)
+                .await
+                .is_some(),
+            OperationType::Serve => cache
+                .find_serve_by_profile(&remote_name, &params.profile_name)
+                .await
+                .is_some(),
+            _ => {
+                if let Some(job_type) = params.operation.as_job_type() {
+                    backend_manager
+                        .job_cache_for(&backend.name)
+                        .get_active_jobs()
+                        .await
+                        .iter()
+                        .any(|job| {
+                            job.job_type == job_type
+                                && crate::utils::types::starter::profile_name(job.starter.as_ref())
+                                    == Some(params.profile_name.as_str())
+                                && (job.remote_name.trim_end_matches(':')
+                                    == remote_name.trim_end_matches(':')
+                                    || profile_group_matches(
+                                        &job.group,
+                                        &job_type.to_string(),
+                                        &remote_name,
+                                        &params.profile_name,
+                                    ))
+                        })
+                } else {
+                    false
+                }
+            }
+        };
+        settings = without_profile(&existing, params, in_use)?;
+    }
     let mut settings = merge_settings(&existing, &settings)?;
     settings["name"] = Value::String(remote_name.clone());
     settings = migrate_to_multi_profile(settings);
@@ -61,6 +167,50 @@ pub async fn save_remote_settings(
     let resolved_settings = serde_json::to_value(&parsed).map_err(
         |error| crate::localized_error!("backendErrors.settings.saveFailed", "error" => error),
     )?;
+    let previous: crate::utils::types::remotes::RemoteSettings =
+        serde_json::from_value(existing.clone()).unwrap_or_default();
+    let changed_histories: Vec<_> = OperationType::ALL
+        .iter()
+        .flat_map(|op| {
+            parsed
+                .get_configs(*op)
+                .into_iter()
+                .flat_map(move |profiles| {
+                    profiles
+                        .iter()
+                        .map(move |(name, profile)| (*op, name, profile))
+                })
+        })
+        .filter(|(op, name, profile)| {
+            profile
+                .app
+                .backup_history_dir
+                .as_ref()
+                .is_some_and(|root| !root.trim().is_empty())
+                && previous
+                    .get_configs(*op)
+                    .and_then(|profiles| profiles.get(*name))
+                    != Some(*profile)
+        })
+        .collect();
+    if !changed_histories.is_empty() {
+        let windows =
+            crate::rclone::commands::common::backend_os(&app, &backend).await? == "windows";
+        for (_, _, profile) in changed_histories {
+            let sources = crate::utils::types::remotes::source_paths(&profile.rclone);
+            let dest = crate::utils::types::remotes::dest_path(&profile.rclone).unwrap_or_default();
+            crate::services::backup::history::validate_root(
+                profile
+                    .app
+                    .backup_history_dir
+                    .as_deref()
+                    .unwrap_or_default(),
+                &dest,
+                &sources,
+                windows,
+            )?;
+        }
+    }
     // Reject malformed cron before committing the desired settings to disk.
     for operation in OperationType::ALL {
         if let Some(profiles) = parsed.get_configs(*operation) {
@@ -100,8 +250,9 @@ pub async fn save_remote_settings(
         runtime.invalidate_remote(&remote_name);
     }
     let jobs = backend_manager.job_cache_for(&backend.name);
-    if let Ok(previous) =
-        serde_json::from_value::<crate::utils::types::remotes::RemoteSettings>(existing)
+    if deletion.is_none()
+        && let Ok(previous) =
+            serde_json::from_value::<crate::utils::types::remotes::RemoteSettings>(existing)
     {
         for operation in OperationType::ALL {
             if let (Some(profiles), Some(job_type)) =
@@ -463,6 +614,8 @@ mod tests {
         for invalid in [
             json!({"cronEnabled": true, "cronExpression": null}),
             json!({"filterProfile": "MissingCustom"}),
+            json!({"backupHistoryDir": "drive:history", "useVss": true}),
+            json!({"backupHistoryDir": "/history"}),
         ] {
             let mut update = original.clone();
             update["syncConfigs"]["Default"]["app"] = invalid;
@@ -479,6 +632,90 @@ mod tests {
                 .unwrap();
             assert_eq!(actual, original);
         }
+    }
+
+    #[tokio::test]
+    async fn simple_delete_preserves_completed_runs_and_rejects_active_owner_groups() {
+        use crate::rclone::backend::BackendManager;
+        use crate::utils::types::{
+            jobs::{JobInfo, JobStatus, JobType},
+            starter::Starter,
+        };
+        let directory = tempfile::tempdir().unwrap();
+        let settings: AppSettingsManager =
+            rcman::SettingsManager::builder("profile-delete-contract", "1.0.0")
+                .with_config_dir(directory.path())
+                .with_schema::<crate::services::settings::schema::AppSettings>()
+                .with_sub_settings(rcman::SubSettingsConfig::new("remotes").with_profiles())
+                .build()
+                .unwrap();
+        let profile = json!({"app":{},"rclone":{"srcFs":"/source","dstFs":"NAS:mirror"}});
+        let original = json!({"name":"drive","syncConfigs":{"Default":profile},"copyConfigs":{"Keep":{"app":{},"rclone":{"srcFs":"/keep","dstFs":"NAS:keep"}}}});
+        settings
+            .sub_settings("remotes")
+            .unwrap()
+            .set("drive", &original)
+            .unwrap();
+        let app = AppHandle::default();
+        app.manage(settings);
+        app.manage(BackendManager::new());
+        app.manage(AutomationsCache::new());
+        app.manage(crate::services::automation::engine::AutomationScheduler::new());
+        app.manage(crate::services::automation::watcher::WatcherManager::new());
+        let manager = app.state::<BackendManager>();
+        let jobs = manager.job_cache_for("Local");
+        let completed = JobInfo {
+            jobid: 44,
+            remote_name: "NAS:".into(),
+            job_type: JobType::Sync,
+            starter: Some(Starter::profile("Default")),
+            group: "sync/drive/Default_0123456789abcdef0123456789abcdef".into(),
+            status: JobStatus::Completed,
+            ..JobInfo::for_test()
+        };
+        jobs.add_job(completed.clone()).await;
+        let request = || DeleteRemoteProfile {
+            backend_name: "Local".into(),
+            remote_name: "drive".into(),
+            operation: OperationType::Sync,
+            profile_name: "Default".into(),
+            expected: profile.clone(),
+        };
+        jobs.add_job(JobInfo {
+            jobid: 45,
+            status: JobStatus::Running,
+            ..completed.clone()
+        })
+        .await;
+        assert!(delete_remote_profile(app.clone(), request()).await.is_err());
+        assert_eq!(
+            app.state::<AppSettingsManager>()
+                .sub_settings("remotes")
+                .unwrap()
+                .get_value("drive")
+                .unwrap(),
+            original
+        );
+        jobs.add_job(JobInfo {
+            jobid: 45,
+            status: JobStatus::Completed,
+            ..completed.clone()
+        })
+        .await;
+        delete_remote_profile(app.clone(), request()).await.unwrap();
+        let saved = app
+            .state::<AppSettingsManager>()
+            .sub_settings("remotes")
+            .unwrap()
+            .get_value("drive")
+            .unwrap();
+        assert!(saved["syncConfigs"].get("Default").is_none());
+        assert_eq!(
+            saved["copyConfigs"]["Keep"]["rclone"],
+            original["copyConfigs"]["Keep"]["rclone"]
+        );
+        assert!(jobs.get_job(44).await.is_some());
+        assert!(jobs.get_job(45).await.is_some());
     }
 
     #[test]
@@ -852,5 +1089,76 @@ mod tests {
         assert!(rclone.get("autoStart").is_none());
         assert_eq!(rclone["fs"], "OneDrive:Documents");
         assert_eq!(rclone["mountPoint"], "/home/test/OneDrive");
+    }
+}
+
+#[cfg(test)]
+mod simple_profile_tests {
+    use super::*;
+    use serde_json::json;
+    fn params() -> DeleteRemoteProfile {
+        DeleteRemoteProfile {
+            backend_name: "Local".into(),
+            remote_name: "NAS".into(),
+            operation: OperationType::Sync,
+            profile_name: "Default".into(),
+            expected: json!({"app": {}, "rclone": {"srcFs":"C:/source", "dstFs":"NAS:mirror"}}),
+        }
+    }
+    #[test]
+    fn deletion_group_guard_uses_exact_owner_profile_and_operation() {
+        assert!(profile_group_matches(
+            "sync/Drive/TEST_0123456789abcdef0123456789abcdef",
+            "sync",
+            "Drive",
+            "TEST"
+        ));
+        assert!(!profile_group_matches(
+            "sync/Drive2/TEST_0123456789abcdef0123456789abcdef",
+            "sync",
+            "Drive",
+            "TEST"
+        ));
+        assert!(!profile_group_matches(
+            "copy/Drive/TEST_0123456789abcdef0123456789abcdef",
+            "sync",
+            "Drive",
+            "TEST"
+        ));
+        assert!(!profile_group_matches(
+            "sync/Drive/TEST_more",
+            "sync",
+            "Drive",
+            "TEST"
+        ));
+    }
+    #[test]
+    fn removing_one_profile_preserves_siblings_and_operation_keys() {
+        let request = params();
+        let existing = json!({"syncConfigs":{"Default":request.expected,"Keep":{"rclone":{"srcFs":"C:/keep"}}},"copyConfigs":{"Default":{"rclone":{"srcFs":"NAS:copy"}}}});
+        let result = merge_settings(
+            &existing,
+            &without_profile(&existing, &request, false).unwrap(),
+        )
+        .unwrap();
+        assert!(result["syncConfigs"].get("Default").is_none());
+        assert_eq!(
+            result["syncConfigs"]["Keep"],
+            existing["syncConfigs"]["Keep"]
+        );
+        assert_eq!(result["copyConfigs"], existing["copyConfigs"]);
+        assert!(existing["syncConfigs"].get("Default").is_some());
+    }
+    #[test]
+    fn stale_missing_and_active_profiles_are_rejected_without_changing_input() {
+        let request = params();
+        let value = json!({"syncConfigs":{"Default":request.expected}});
+        let before = value.clone();
+        assert!(without_profile(&value, &request, true).is_err());
+        let mut stale = params();
+        stale.expected = json!({});
+        assert!(without_profile(&value, &stale, false).is_err());
+        assert!(without_profile(&json!({}), &request, false).is_err());
+        assert_eq!(value, before);
     }
 }

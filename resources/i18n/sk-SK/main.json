@@ -1283,9 +1283,12 @@
         "onlyOnSource": "iba v zdroji",
         "onlyOnDestination": "iba v cieli",
         "differ": "líšia sa",
-        "deleted": "Odstránené"
-      }
-    }
+        "deleted": "Odstránené",
+        "comparisonSpeed": "Rýchlosť porovnania"
+      },
+      "previewHelp": "Skúšobný beh: objem a rýchlosť opisujú porovnanie, nie skutočný prenos dát."
+    },
+    "dateFormat": "dd.MM.yyyy HH:mm"
   },
   "wizards": {
     "cliImport": {
@@ -3512,7 +3515,9 @@
       "deleteFailed": "Odstránenie nastavení vzdialeného úložiska zlyhalo: {{error}}",
       "taskFailed": "Úloha nastavení zlyhala: {{error}}",
       "deleteEntryFailed": "Odstránenie položky nastavení zlyhalo: {{error}}",
-      "managerInitFailed": "Vytvorenie správcu nastavení zlyhalo: {{error}}"
+      "managerInitFailed": "Vytvorenie správcu nastavení zlyhalo: {{error}}",
+      "profileChanged": "Úloha sa medzičasom zmenila. Obnov zoznam a skontroluj vybranú úlohu.",
+      "profileInUse": "Úloha je práve aktívna a nemožno ju odstrániť."
     },
     "vault": {
       "passwordEmpty": "Heslo trezoru nemôže byť prázdne",
@@ -4746,7 +4751,7 @@
       "inUse": "obsadené",
       "unavailable": "Zoznam jednotiek sa nepodarilo overiť. Obnov ho pred uložením.",
       "pathHelpTitle": "Ako vybrať miesto pripojenia",
-      "name": "Názov disku",
+      "name": "Názov v aplikácii",
       "edit": "Upraviť disk",
       "save": "Uložiť disk",
       "saveLater": "Uložiť na neskôr",
@@ -4770,7 +4775,14 @@
       "savedApplyFailed": "Nastavenia sú uložené, ale ich použitie sa nepodarilo dokončiť. Skontroluj aktuálny stav disku a čakajúce nastavenia.",
       "connectTitle": "Pripojiť disk",
       "confirm": "Disk: {{name}}\nZdroj: {{source}}\nMiesto: {{destination}}\nTyp: {{type}}\nPrístup: {{access}}\nPripojiť disk teraz?",
-      "source": "Úložisko alebo priečinok"
+      "source": "Úložisko alebo priečinok",
+      "storage": "Úložisko",
+      "subfolder": "Priečinok v úložisku (voliteľný)",
+      "subfolderHelp": "Prázdne znamená celé úložisko. Úložisko zostáva pevne zvolené.",
+      "volumeName": "Menovka disku vo Windows (voliteľná)",
+      "volumeNameHelp": "Prázdne použije automatický názov. Zmena menovky sa použije po znovupripojení.",
+      "explanation": "Čo znamená pripojiť disk",
+      "refreshing": "Overujem pripojenie disku…"
     },
     "tasks": {
       "add": "Vytvoriť úlohu",
@@ -4800,7 +4812,13 @@
       "complex": "Táto úloha má viac zdrojov. Uprav ju v pokročilom režime, aby zostali zachované všetky cesty.",
       "needsSetup": "Treba doplniť nastavenia",
       "explanation": "Čo táto úloha robí",
-      "preservedTitle": "Ďalšie uložené nastavenia"
+      "preservedTitle": "Ďalšie uložené nastavenia",
+      "owner": "Nastavenia úlohy sú uložené pri pripojení: {{remote}}",
+      "delete": "Odstrániť úlohu",
+      "deleteConfirm": "Odstrániť úlohu {{name}} ({{operation}}) z pripojenia {{remote}} vrátane jej plánovania? Zdrojové súbory, zálohy, história verzií a záznamy behov zostanú zachované.",
+      "templates": "Nepoužité predlohy ({{count}})",
+      "templatesHelp": "Predpripravené profily bez dokončeného nastavenia. Nie sú to automaticky zapnuté plány.",
+      "configure": "Nastaviť"
     },
     "operations": {
       "sync": "Zrkadlenie",
@@ -4830,7 +4848,7 @@
     },
     "history": {
       "folder": "Priečinok starších a odstránených verzií (voliteľný)",
-      "help": "Zachová sa pôvodný strom priečinkov. Historické súbory majú dátum a čas pred príponou. História sa automaticky nemaže. Vyber samostatný priečinok na rovnakom cieli.",
+      "help": "Zachová sa pôvodný strom priečinkov a dátum pri staršej verzii. História sa automaticky nemaže. Musí byť na rovnakom úložisku, mimo zdroja aj celého cieľového priečinka. Napríklad cieľ TEST/mirror a história TEST/history.",
       "enabled": "Staršie a odstránené verzie sa uchovávajú v histórii.",
       "open": "Otvoriť",
       "up": "Nadradený priečinok",
@@ -4844,7 +4862,15 @@
       "noTasks": "Zatiaľ nemáš úlohy s nastaveným priečinkom histórie.",
       "runs": "Posledné behy a obnovy",
       "noRuns": "Zatiaľ tu nie sú záznamy behov.",
-      "activeLabel": "História zapnutá"
+      "activeLabel": "História zapnutá",
+      "explanation": "Ako fungujú staršie verzie",
+      "legacyArchive": "Starší archív {{date}}",
+      "modified": "Upravené",
+      "runsHelp": "Toto sú záznamy operácií. Dokončené porovnanie alebo pripojenie disku nepotvrdzuje vytvorenie zálohy ani staršej verzie.",
+      "locationsHelp": "Nastavené miesta pre staršie verzie. Obsah a dostupnosť sa overia až po otvorení.",
+      "unnamedRun": "Samostatný beh",
+      "otherOperation": "Iná operácia",
+      "modeUnknown": "Režim nezistený"
     },
     "status": {
       "Running": "Prebieha",
@@ -4862,7 +4888,8 @@
       "save": "Úlohu sa nepodarilo uložiť. Skontroluj pripojenie a skús znova.",
       "vssSource": "Snímka Windows vyžaduje lokálny zdrojový priečinok. Vyber lokálny zdroj alebo vypni snímku.",
       "drive": "Vyber voľné písmeno jednotky a počkaj na overenie diskov.",
-      "driveCollision": "Toto miesto používa iný disk alebo profil. Vyber iné."
+      "driveCollision": "Toto miesto používa iný disk alebo profil. Vyber iné.",
+      "mountSource": "Úložisko disku sa tu nemení. Vyber jeho relatívny podpriečinok bez odkazu na nadradený priečinok."
     },
     "sftp": {
       "host": "Adresa servera",
@@ -4872,7 +4899,8 @@
       "key_file": "Súbor SSH kľúča (voliteľný)",
       "key_file_pass": "Heslo SSH kľúča",
       "required": "Vyplň povinný údaj.",
-      "help": "Zadaj adresu servera, port a používateľa. Použi heslo alebo cestu k svojmu SSH kľúču. Pre bežné SFTP je predvolený port 22."
+      "help": "Zadaj adresu servera, port a používateľa. Použi heslo alebo cestu k svojmu SSH kľúču. Pre bežné SFTP je predvolený port 22.",
+      "chooseKey": "Vybrať súbor SSH kľúča"
     },
     "cloud": {
       "access": "Prístup k súborom",

@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { signal } from '@angular/core';
+import { Subject } from 'rxjs';
+import { FilePickerResult } from '@app/types';
 import { NautilusService } from './nautilus.service';
 
 describe('Nautilus standalone windows', () => {
@@ -79,5 +82,97 @@ describe('Nautilus standalone windows', () => {
     vi.spyOn(window, 'open').mockReturnValue(opened ? window : null);
     expect(await service.openStandaloneWindow('drive', '')).toBe(opened);
     expect(context.closeBrowserOverlay).toHaveBeenCalledTimes(opened ? 1 : 0);
+  });
+});
+
+describe('Nautilus picker disposal', () => {
+  it('destroys the overlay in picker mode before publishing the result, once only', () => {
+    const state = signal({ isOpen: true, options: { requestId: 'picker-test' } });
+    const events: string[] = [];
+    const results = new Subject<FilePickerResult>();
+    results.subscribe(result => {
+      events.push('result');
+      expect(state().isOpen).toBe(false);
+      expect(result).toMatchObject({ cancelled: true, paths: [], requestId: 'picker-test' });
+    });
+    const context = {
+      closeFilePicker: NautilusService.prototype.closeFilePicker,
+      _filePickerState: state,
+      _filePickerResult: results,
+      pickerRequest: 1,
+      isPickerOpening: true,
+      pickerOverlayRef: {
+        dispose: (): void => {
+          expect(state().isOpen).toBe(true);
+          events.push('dispose');
+        },
+      },
+      releasePickerHistory: vi.fn(),
+    };
+    const service = context as unknown as NautilusService;
+    service.closeFilePicker(null);
+    service.closeFilePicker(null);
+    expect(events).toEqual(['dispose', 'result']);
+    expect(context.pickerOverlayRef).toBeNull();
+    expect(context.isPickerOpening).toBe(false);
+    expect(context.releasePickerHistory).toBeUndefined();
+  });
+
+  it.each([true, false])(
+    'returns focus after the opener is enabled, unless another picker opened: %s',
+    reopened => {
+      const button = document.createElement('button');
+      document.body.append(button);
+      button.disabled = true;
+      let frame!: FrameRequestCallback;
+      const animation = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(callback => {
+        frame = callback;
+        return 1;
+      });
+      const state = signal({ isOpen: true });
+      const context = {
+        _filePickerState: state,
+        _filePickerResult: new Subject<FilePickerResult>(),
+        pickerReturnFocus: button,
+        pickerRequest: 1,
+      };
+      try {
+        NautilusService.prototype.closeFilePicker.call(context as unknown as NautilusService, null);
+        button.disabled = false;
+        state.set({ isOpen: reopened });
+        frame(0);
+        expect(document.activeElement === button).toBe(!reopened);
+      } finally {
+        button.remove();
+        animation.mockRestore();
+      }
+    }
+  );
+
+  it('does not let a late opening release the history of a newer request', async () => {
+    let finish!: () => void;
+    const pending = new Promise<void>(resolve => {
+      finish = resolve;
+    });
+    const context = {
+      vault: { isAccessible: (): boolean => true },
+      _filePickerState: signal({ isOpen: false }),
+      _filePickerResult: new Subject<FilePickerResult>(),
+      pickerRequest: 0,
+      isPickerOpening: false,
+      pickerOverlayRef: null,
+      createPickerOverlay: vi.fn(() => pending),
+      navigationHistory: { openLayer: vi.fn() },
+      closeFilePicker: NautilusService.prototype.closeFilePicker,
+    };
+    const service = context as unknown as NautilusService;
+    const opening = NautilusService.prototype.openFilePicker.call(service, {
+      mode: 'both',
+      selection: 'folders',
+    });
+    service.closeFilePicker(null);
+    finish();
+    expect(await opening).toBe(false);
+    expect(context.navigationHistory.openLayer).not.toHaveBeenCalled();
   });
 });

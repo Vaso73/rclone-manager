@@ -3,7 +3,7 @@ import { TauriBaseService } from '../infrastructure/platform/tauri-base.service'
 import { NautilusService } from '../ui/nautilus.service';
 import { FilePickerConfig, FilePickerResult } from '@app/types';
 import { PathService } from '../infrastructure/platform/path.service';
-import { filter, firstValueFrom } from 'rxjs';
+import { filter, firstValueFrom, Observable } from 'rxjs';
 import { isMobile } from '../infrastructure/platform/api-client.service';
 import { BackendService } from '../infrastructure/system/backend.service';
 import { generatePrefixedId } from 'src/app/shared/utils';
@@ -44,7 +44,7 @@ export class FileSystemService extends TauriBaseService {
       };
       const result = await this.selectPathWithNautilus(config);
       if (result.cancelled || (result.items.length === 0 && result.paths.length === 0)) {
-        throw new Error('Folder selection cancelled');
+        return '';
       }
       // Return full path constructed by Nautilus
       return result.paths[0];
@@ -77,9 +77,21 @@ export class FileSystemService extends TauriBaseService {
   async selectPathWithNautilus(config: FilePickerConfig): Promise<FilePickerResult> {
     const requestId = config.requestId ?? generatePrefixedId('picker');
 
-    this.nautilusService.openFilePicker({ ...config, requestId });
     return firstValueFrom(
-      this.nautilusService.filePickerResult$.pipe(filter(result => result.requestId === requestId))
+      new Observable<FilePickerResult>(subscriber => {
+        // Subscribe before opening: cancellation or a mocked/native result can arrive immediately.
+        const subscription = this.nautilusService.filePickerResult$
+          .pipe(filter(result => result.requestId === requestId))
+          .subscribe(subscriber);
+        void Promise.resolve(this.nautilusService.openFilePicker({ ...config, requestId }))
+          .then(opened => {
+            if (opened === false) {
+              subscriber.next({ cancelled: true, items: [], paths: [], requestId });
+            }
+          })
+          .catch(error => subscriber.error(error));
+        return () => subscription.unsubscribe();
+      })
     );
   }
 
@@ -98,7 +110,7 @@ export class FileSystemService extends TauriBaseService {
       };
       const result = await this.selectPathWithNautilus(config);
       if (result.cancelled || (result.items.length === 0 && result.paths.length === 0)) {
-        throw new Error('File selection cancelled');
+        return '';
       }
       // Return full path constructed by Nautilus
       return result.paths[0];
@@ -106,7 +118,7 @@ export class FileSystemService extends TauriBaseService {
 
     // In Tauri mode, use native dialog
     try {
-      return await this.invokeCommand<string>('get_file_location', { initialPath });
+      return (await this.invokeCommand<string | null>('get_file_location', { initialPath })) ?? '';
     } catch (error) {
       this.notificationService.confirmModal(
         this.translate.instant('common.error'),

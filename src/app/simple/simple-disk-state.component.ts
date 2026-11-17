@@ -9,10 +9,15 @@ import { simpleMountPending } from './simple-profile.util';
   imports: [TranslatePipe, PillDirective],
   template: `
     <section class="detail-section" aria-live="polite">
-      @if (active(); as disk) {
+      @if (refreshing()) {
+        <p role="status">{{ 'simple.drives.refreshing' | translate }}</p>
+      } @else if (active(); as disk) {
         <div class="card-row-item">
           <span>{{ 'simple.drives.current' | translate }}</span>
           <strong class="truncate" [title]="disk.mount_point">{{ disk.mount_point }}</strong>
+          @if (disk.settings?.volume_name; as name) {
+            <span>{{ name }}</span>
+          }
           <span appPill size="xs" tone="dim">{{ currentType() | translate }}</span>
           <span appPill size="xs" tone="dim">{{ currentAccess() | translate }}</span>
         </div>
@@ -23,6 +28,9 @@ import { simpleMountPending } from './simple-profile.util';
                 | translate
             }}</span>
             <strong class="truncate" [title]="destination()">{{ destination() }}</strong>
+            @if (volumeName()) {
+              <span>{{ volumeName() }}</span>
+            }
             <span appPill size="xs" tone="orange">{{
               (networkDrive() ? 'simple.drives.network' : 'simple.drives.local') | translate
             }}</span>
@@ -49,6 +57,9 @@ import { simpleMountPending } from './simple-profile.util';
         <div class="card-row-item">
           <span>{{ 'simple.drives.nextMount' | translate }}</span>
           <strong class="truncate" [title]="destination()">{{ destination() }}</strong>
+          @if (volumeName()) {
+            <span>{{ volumeName() }}</span>
+          }
           <span appPill size="xs" tone="dim">{{
             (networkDrive() ? 'simple.drives.network' : 'simple.drives.local') | translate
           }}</span>
@@ -90,10 +101,12 @@ import { simpleMountPending } from './simple-profile.util';
 })
 export class SimpleDiskStateComponent {
   readonly active = input<MountedRemote>();
+  readonly refreshing = input(false);
   readonly source = input.required<string>();
   readonly destination = input.required<string>();
   readonly networkDrive = input.required<boolean>();
   readonly readOnly = input.required<boolean>();
+  readonly volumeName = input<string>();
   readonly currentType = computed(() => {
     const value = this.active()?.settings?.network_mode;
     return value === true
@@ -116,6 +129,7 @@ export class SimpleDiskStateComponent {
       destination: this.destination(),
       networkDrive: this.networkDrive(),
       readOnly: this.readOnly(),
+      volumeName: this.volumeName(),
     })
   );
 }

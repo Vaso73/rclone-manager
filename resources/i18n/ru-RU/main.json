@@ -1283,9 +1283,12 @@
         "onlyOnSource": "только в источнике",
         "onlyOnDestination": "только в назначении",
         "differ": "различаются",
-        "deleted": "Удалено"
-      }
-    }
+        "deleted": "Удалено",
+        "comparisonSpeed": "Comparison speed"
+      },
+      "previewHelp": "Preview: volume and speed describe comparison, not an actual data transfer."
+    },
+    "dateFormat": "yyyy-MM-dd HH:mm"
   },
   "wizards": {
     "cliImport": {
@@ -3471,7 +3474,9 @@
       "deleteFailed": "Не удалось удалить настройки подключения: {{error}}",
       "taskFailed": "Задача настроек завершилась ошибкой: {{error}}",
       "deleteEntryFailed": "Не удалось удалить запись настроек: {{error}}",
-      "managerInitFailed": "Не удалось создать менеджер настроек: {{error}}"
+      "managerInitFailed": "Не удалось создать менеджер настроек: {{error}}",
+      "profileChanged": "The task changed meanwhile. Refresh the list and check the selected task.",
+      "profileInUse": "The task is active and cannot be deleted."
     },
     "vault": {
       "passwordEmpty": "Пароль хранилища не может быть пустым",
@@ -4746,7 +4751,7 @@
       "inUse": "in use",
       "unavailable": "Could not check existing drives. Refresh the list before saving.",
       "pathHelpTitle": "Choosing a mount location",
-      "name": "Disk name",
+      "name": "Name in the app",
       "edit": "Edit disk",
       "save": "Save disk",
       "saveLater": "Save for later",
@@ -4770,7 +4775,14 @@
       "savedApplyFailed": "Settings were saved but could not be fully applied. Check the current disk state and pending settings.",
       "connectTitle": "Connect disk",
       "confirm": "Disk: {{name}}\nSource: {{source}}\nLocation: {{destination}}\nType: {{type}}\nAccess: {{access}}\nConnect the disk now?",
-      "source": "Storage or folder"
+      "source": "Storage or folder",
+      "storage": "Storage connection",
+      "subfolder": "Folder within storage (optional)",
+      "subfolderHelp": "Leave empty for the entire storage. The storage connection stays fixed.",
+      "volumeName": "Windows volume label (optional)",
+      "volumeNameHelp": "Leave empty for the automatic label. Label changes apply on reconnection.",
+      "explanation": "What connecting a disk does",
+      "refreshing": "Checking the disk connection…"
     },
     "tasks": {
       "add": "Create a task",
@@ -4800,7 +4812,13 @@
       "complex": "This task has multiple sources. Edit it in Advanced mode to preserve all paths.",
       "needsSetup": "Needs setup",
       "explanation": "What this task does",
-      "preservedTitle": "Other saved settings"
+      "preservedTitle": "Other saved settings",
+      "owner": "These settings belong to connection: {{remote}}",
+      "delete": "Delete task",
+      "deleteConfirm": "Delete task {{name}} ({{operation}}) from {{remote}}, including its schedule? Source files, backups, archived versions and run records will be preserved.",
+      "templates": "Unused templates ({{count}})",
+      "templatesHelp": "Generated profiles without completed settings. Their presence does not mean scheduling is enabled.",
+      "configure": "Configure"
     },
     "operations": {
       "sync": "Mirror",
@@ -4830,7 +4848,7 @@
     },
     "history": {
       "folder": "Folder for older and deleted versions (optional)",
-      "help": "Keep the original folder tree. Historical files have a date and time before the extension. History is never deleted automatically. Choose a separate folder on the same destination.",
+      "help": "Keep the original folder tree and dated versions without automatic deletion. History must be on the target filesystem, outside both source and destination trees. For example, destination TEST/mirror and history TEST/history.",
       "enabled": "Older and deleted versions are kept in history.",
       "open": "Open",
       "up": "Parent folder",
@@ -4844,7 +4862,15 @@
       "noTasks": "No tasks with a history folder yet.",
       "runs": "Recent runs and restores",
       "noRuns": "No runs recorded yet.",
-      "activeLabel": "History enabled"
+      "activeLabel": "History enabled",
+      "explanation": "How archived versions work",
+      "legacyArchive": "Legacy archive {{date}}",
+      "modified": "Modified",
+      "runsHelp": "These are operation records. A completed comparison or disk connection does not prove that a backup or archived version was created.",
+      "locationsHelp": "Configured archive locations. Contents and availability are checked when opened.",
+      "unnamedRun": "Standalone run",
+      "otherOperation": "Other operation",
+      "modeUnknown": "Run mode unknown"
     },
     "status": {
       "Running": "Running",
@@ -4862,7 +4888,8 @@
       "save": "The task could not be saved. Check the connection and try again.",
       "vssSource": "Windows snapshots require a local source folder. Choose a local source or turn snapshots off.",
       "drive": "Choose an available drive letter and wait for the drive check.",
-      "driveCollision": "Another disk or profile uses this location. Choose another one."
+      "driveCollision": "Another disk or profile uses this location. Choose another one.",
+      "mountSource": "Keep the selected storage connection. Choose a relative folder without parent traversal."
     },
     "sftp": {
       "host": "Server address",
@@ -4872,7 +4899,8 @@
       "key_file": "SSH key file (optional)",
       "key_file_pass": "SSH key passphrase",
       "required": "Complete the required field.",
-      "help": "Enter the server address, port and username. Use a password or the path to your SSH key. The usual SFTP port is 22."
+      "help": "Enter the server address, port and username. Use a password or the path to your SSH key. The usual SFTP port is 22.",
+      "chooseKey": "Choose SSH key file"
     },
     "cloud": {
       "access": "File access",

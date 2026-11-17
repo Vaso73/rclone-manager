@@ -12,6 +12,9 @@ import {
   sameDriveScope,
   RemoteConfigStepComponent,
 } from './remote-config-step.component';
+import { FileSystemService } from 'src/app/services/operations/file-system.service';
+import { BackendService } from 'src/app/services/infrastructure/system/backend.service';
+import { NotificationService } from 'src/app/services/ui/notification.service';
 import { RemoteManagementService } from 'src/app/services/remote/remote-management.service';
 import { IconService } from 'src/app/services/ui/icon.service';
 import { UiStateService } from 'src/app/services/ui/state/ui-state.service';
@@ -38,6 +41,40 @@ describe('RemoteConfigStepComponent field state', () => {
     vi.restoreAllMocks();
     vi.useRealTimers();
   });
+
+  it.each(['success', 'cancel', 'backend change', 'destroy'])(
+    'handles SSH key picking: %s',
+    async scenario => {
+      const backend = signal('Local');
+      let complete!: (path: string) => void;
+      const pick = vi.fn(
+        () =>
+          new Promise<string>(resolve => {
+            complete = resolve;
+          })
+      );
+      TestBed.overrideProvider(FileSystemService, { useValue: { selectFile: pick } });
+      TestBed.overrideProvider(BackendService, { useValue: { activeBackend: backend } });
+      TestBed.overrideProvider(NotificationService, { useValue: { showError: vi.fn() } });
+      const fixture = TestBed.createComponent(RemoteConfigStepComponent);
+      const form = new FormGroup({
+        type: new FormControl('sftp'),
+        name: new FormControl('NAS'),
+        key_file: new FormControl('C:/keys/original'),
+      });
+      fixture.componentRef.setInput('form', form);
+      fixture.detectChanges();
+      const result = fixture.componentInstance.pickSshKey();
+      if (scenario === 'backend change') backend.set('Other');
+      if (scenario === 'destroy') fixture.destroy();
+      complete(scenario === 'cancel' ? '' : 'C:/keys/Žltý key');
+      await result;
+      expect(form.controls.key_file.value).toBe(
+        scenario === 'success' ? 'C:/keys/Žltý key' : 'C:/keys/original'
+      );
+      expect(pick).toHaveBeenCalledWith('C:/keys/original');
+    }
+  );
 
   it('uses the interactive cloud flow even when command controls are hidden', () => {
     vi.spyOn(TestBed.inject(RemoteManagementService), 'isInteractiveRemote').mockReturnValue(true);

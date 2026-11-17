@@ -85,10 +85,11 @@
               ><app-simple-history [task]="task"></app-simple-history></mat-card-content
           ></mat-card>
         } @else {
+          <p>{{ 'simple.history.locationsHelp' | translate }}</p>
           @for (task of historyTasks(); track task.remote + task.operation + task.name) {
             <mat-card
               ><mat-card-header
-                ><mat-card-title>{{ task.name }}</mat-card-title
+                ><mat-card-title>{{ label(task) }}</mat-card-title
                 ><mat-card-subtitle>{{ task.remote }}</mat-card-subtitle></mat-card-header
               ><mat-card-content
                 ><p class="truncate" [title]="task.history">{{ task.history }}</p></mat-card-content
@@ -110,10 +111,21 @@
         }
         <section class="detail-section">
           <h2>{{ 'simple.history.runs' | translate }}</h2>
+          <p>{{ 'simple.history.runsHelp' | translate }}</p>
           @for (job of facade.jobs().slice(0, 20); track job.execute_id) {
             <div class="card-row-item">
-              <span>{{ job.remote_name }}</span
-              ><span>{{ 'simple.status.' + job.status | translate }}</span
+              <span>{{ job.remote_name }}</span>
+              <strong>{{ jobProfile(job) || ('simple.history.unnamedRun' | translate) }}</strong>
+              <span>{{ jobType(job) | translate }}</span>
+              @if (job.dry_run) {
+                <span appPill tone="accent" size="xs">{{
+                  'detailShared.jobs.dryRun' | translate
+                }}</span>
+              } @else if (job.dry_run === null || job.dry_run === undefined) {
+                <span appPill size="xs">{{ 'simple.history.modeUnknown' | translate }}</span>
+              }
+              <span appPill size="xs">#{{ job.jobid }}</span>
+              <span>{{ 'simple.status.' + job.status | translate }}</span
               ><span>{{ job.start_time | date: ('simple.dateFormat' | translate) }}</span
               ><button matButton (click)="details(job)">
                 {{ 'simple.tasks.result' | translate }}
@@ -157,10 +169,29 @@
               </button>
             }
           </div>
+          @if (templates().length) {
+            <details class="detail-section">
+              <summary>
+                {{ 'simple.tasks.templates' | translate: { count: templates().length } }}
+              </summary>
+              <p>{{ 'simple.tasks.templatesHelp' | translate }}</p>
+              @for (task of templates(); track task.remote + task.operation + task.name) {
+                <div class="card-row-item">
+                  <span>{{ 'simple.operations.' + task.operation | translate }}</span>
+                  <button matButton (click)="edit(task)">
+                    {{ 'simple.tasks.configure' | translate }}
+                  </button>
+                  <button matButton (click)="remove(task)" [disabled]="pending() || active(task)">
+                    {{ 'simple.tasks.delete' | translate }}
+                  </button>
+                </div>
+              }
+            </details>
+          }
           @for (task of visibleTasks(); track task.remote + task.operation + task.name) {
             <mat-card [attr.data-tone]="tones[task.operation]">
               <mat-card-header
-                ><mat-card-title>{{ task.name }}</mat-card-title
+                ><mat-card-title>{{ label(task) }}</mat-card-title
                 ><mat-card-subtitle>{{
                   'simple.operations.' + task.operation | translate
                 }}</mat-card-subtitle></mat-card-header
@@ -172,7 +203,14 @@
                   }}</span>
                 }
                 <details>
-                  <summary>{{ 'simple.tasks.explanation' | translate }}</summary>
+                  <summary>
+                    {{
+                      (task.operation === 'mount'
+                        ? 'simple.drives.explanation'
+                        : 'simple.tasks.explanation'
+                      ) | translate
+                    }}
+                  </summary>
                   <p>{{ 'simple.operationHelp.' + task.operation | translate }}</p>
                 </details>
                 <div class="task-path">
@@ -189,7 +227,7 @@
                     >
                   </div>
                 }
-                @if (task.history) {
+                @if (task.history && ready(task)) {
                   <span appPill size="xs" tone="dim">{{
                     'simple.history.activeLabel' | translate
                   }}</span>
@@ -207,6 +245,7 @@
                     [destination]="task.destination"
                     [networkDrive]="options.networkDrive"
                     [readOnly]="options.readOnly"
+                    [volumeName]="volumeName(task.config)"
                   ></app-simple-disk-state>
                 }
                 @if (task.operation !== 'mount' && latest(task); as job) {
@@ -283,6 +322,16 @@
                       | translate
                   }}
                 </button>
+                @if (page() === 'tasks') {
+                  <button
+                    matButton
+                    data-tone="warn"
+                    (click)="remove(task)"
+                    [disabled]="pending() || active(task)"
+                  >
+                    {{ 'simple.tasks.delete' | translate }}
+                  </button>
+                }
               </mat-card-actions>
             </mat-card>
           } @empty {

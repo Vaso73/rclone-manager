@@ -33,7 +33,15 @@ fn settings_from_values(
 ) -> MountedSettings {
     let network = ["NetworkMode", "network_mode", "network-mode", "networkMode"];
     let readonly = ["ReadOnly", "read_only", "read-only", "readOnly"];
+    let volume_name = |value: &Value| {
+        ["VolName", "volname", "vol_name", "vol-name"]
+            .iter()
+            .find_map(|key| value.get(key).and_then(Value::as_str).map(str::to_owned))
+    };
     MountedSettings {
+        volume_name: volume_name(&payload["mountOpt"])
+            .or_else(|| volume_name(payload))
+            .or_else(|| volume_name(&globals["mount"])),
         source: source.to_owned(),
         network_mode: boolean(&payload["mountOpt"], &network)
             .or_else(|| boolean(payload, &network))
@@ -117,6 +125,7 @@ fn check_applied(
         actual.source == expected.source
             && (expected.network_mode.is_none() || actual.network_mode == expected.network_mode)
             && (expected.read_only.is_none() || actual.read_only == expected.read_only)
+            && (expected.volume_name.is_none() || actual.volume_name == expected.volume_name)
     });
     if !matches {
         return Err(crate::localized_error!(
@@ -286,6 +295,32 @@ mod tests {
         assert_eq!(settings.read_only, Some(false));
     }
     #[test]
+    fn volume_label_snapshot_uses_explicit_label_before_global_default() {
+        let saved = settings_from_values(
+            "NAS:",
+            &json!({"mountOpt":{"VolName":"My NAS"}}),
+            &json!({"mount":{"VolName":"Global"}}),
+            &Value::Null,
+        );
+        assert_eq!(saved.volume_name.as_deref(), Some("My NAS"));
+        let inherited = settings_from_values(
+            "NAS:",
+            &json!({}),
+            &json!({"mount":{"VolName":"Global"}}),
+            &Value::Null,
+        );
+        assert_eq!(inherited.volume_name.as_deref(), Some("Global"));
+        let empty = settings_from_values(
+            "NAS:",
+            &json!({"mountOpt":{"VolName":""}}),
+            &json!({"mount":{"VolName":"Global"}}),
+            &Value::Null,
+        );
+        assert_eq!(empty.volume_name.as_deref(), Some(""));
+        let unknown = settings_from_values("NAS:", &json!({}), &json!({}), &Value::Null);
+        assert_eq!(unknown.volume_name, None);
+    }
+    #[test]
     fn reconnect_rejects_missing_replaced_or_occupied_mounts_before_disconnect() {
         let p = params();
         let old = mounted();
@@ -350,6 +385,7 @@ mod tests {
     #[test]
     fn reconnect_never_reports_success_when_live_vfs_options_differ_or_are_missing() {
         let wanted = MountedSettings {
+            volume_name: None,
             source: "NAS:".into(),
             network_mode: Some(true),
             read_only: Some(false),

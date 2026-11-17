@@ -148,6 +148,7 @@ macro_rules! MASTER_COMMAND_LIST {
 
             // REMOTE SETTINGS
             (save_remote_settings, $crate::services::settings::remote::manager::save_remote_settings, [remote_name: String, settings: serde_json::Value, backend_name: Option<String>]);
+            (delete_remote_profile, $crate::services::settings::remote::manager::delete_remote_profile, [params: $crate::services::settings::remote::manager::DeleteRemoteProfile]);
             (delete_remote_settings, $crate::services::settings::remote::manager::delete_remote_settings, [remote_name: String]);
 
             // BACKUP & RESTORE

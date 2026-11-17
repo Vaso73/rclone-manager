@@ -19,6 +19,7 @@ import {
   MountedRemote,
   OPERATION_TONE,
   profileOf,
+  OPERATION_REGISTRY,
 } from '@app/types';
 import { WorkspaceShellComponent } from '../layout/workspace-shell/workspace-shell.component';
 import { TitlebarComponent } from '../layout/titlebar/titlebar.component';
@@ -37,6 +38,8 @@ import {
   simpleTaskReady,
   simpleTaskMount,
   simpleMountOptions,
+  simpleTaskTemplate,
+  simpleVolumeName,
 } from './simple-profile.util';
 import { SimpleTaskEditorComponent } from './simple-task-editor.component';
 import { SimpleDiskStateComponent } from './simple-disk-state.component';
@@ -68,7 +71,20 @@ type SimplePage = 'connections' | 'drives' | 'tasks' | 'history';
 export class SimpleWorkspaceComponent {
   readonly facade = inject(RemoteFacadeService);
   readonly icons = inject(IconService);
-  readonly ready = simpleTaskReady;
+  ready(task: SimpleTask): boolean {
+    return simpleTaskReady(task, this.backend.isWindows());
+  }
+  label(task: SimpleTask): string {
+    return task.displayName || task.name;
+  }
+  volumeName = simpleVolumeName;
+  jobProfile = profileOf;
+  jobType(job: JobInfo): string {
+    return (
+      OPERATION_REGISTRY.find(op => op.key === job.job_type)?.typeLabel ??
+      'simple.history.otherOperation'
+    );
+  }
   mountOptions(task: SimpleTask): { networkDrive: boolean; readOnly: boolean } {
     return simpleMountOptions(task.config, this.facade.getRemoteSettings(task.remote));
   }
@@ -100,13 +116,48 @@ export class SimpleWorkspaceComponent {
       .remoteSummaries()
       .flatMap(remote => listSimpleTasks(remote.name, this.facade.getRemoteSettings(remote.name)))
   );
-  readonly visibleTasks = computed(() =>
+  readonly matchingTasks = computed(() =>
     this.allTasks().filter(
       task =>
         task.remote === this.selected() &&
         (this.page() === 'drives' ? task.operation === 'mount' : task.operation !== 'mount')
     )
   );
+  readonly visibleTasks = computed(() =>
+    this.matchingTasks().filter(task => !simpleTaskTemplate(task))
+  );
+  readonly templates = computed(() => this.matchingTasks().filter(simpleTaskTemplate));
+
+  async remove(task: SimpleTask): Promise<void> {
+    if (this.pending() || this.active(task)) return;
+    const backend = this.backend.activeBackend();
+    this.pending.set(true);
+    try {
+      const accepted = await this.notifications.confirmModal(
+        'simple.tasks.delete',
+        this.translate.instant('simple.tasks.deleteConfirm', {
+          name: this.label(task),
+          remote: task.remote,
+          operation: this.translate.instant('simple.operations.' + task.operation),
+        }),
+        'simple.tasks.delete',
+        'common.cancel'
+      );
+      if (!accepted || backend !== this.backend.activeBackend() || this.active(task)) return;
+      await this.facade.deleteTaskProfile(
+        task.remote,
+        task.operation,
+        task.name,
+        task.config,
+        backend
+      );
+    } catch (error) {
+      this.notifications.showError(error);
+    } finally {
+      this.pending.set(false);
+    }
+  }
+
   readonly historyTasks = computed(() => this.allTasks().filter(task => !!task.history));
   readonly validEditor = computed(() => {
     const editor = this.editor();
@@ -214,7 +265,7 @@ export class SimpleWorkspaceComponent {
           this.translate.instant(
             task.operation === 'mount' ? 'simple.drives.confirm' : 'simple.tasks.confirm',
             {
-              name: task.name,
+              name: this.label(task),
               type: this.translate.instant(
                 this.mountOptions(task).networkDrive
                   ? 'simple.drives.network'

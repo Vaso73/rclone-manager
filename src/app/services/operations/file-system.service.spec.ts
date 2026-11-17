@@ -1,3 +1,5 @@
+import { Observable, Subject } from 'rxjs';
+import { FilePickerConfig, FilePickerResult } from '@app/types';
 import { TestBed } from '@angular/core/testing';
 import { TranslateService } from '@ngx-translate/core';
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
@@ -20,7 +22,7 @@ describe('FileSystemService', () => {
   let nautilusServiceMock: {
     newNautilusWindow: ReturnType<typeof vi.fn>;
     openFilePicker: ReturnType<typeof vi.fn>;
-    filePickerResult$: { pipe: ReturnType<typeof vi.fn> };
+    filePickerResult$: Observable<FilePickerResult>;
   };
   let backendServiceMock: {
     activeBackend: ReturnType<typeof vi.fn>;
@@ -38,7 +40,7 @@ describe('FileSystemService', () => {
     nautilusServiceMock = {
       newNautilusWindow: vi.fn().mockResolvedValue(undefined),
       openFilePicker: vi.fn(),
-      filePickerResult$: { pipe: vi.fn() },
+      filePickerResult$: new Subject<FilePickerResult>(),
     };
     backendServiceMock = {
       activeBackend: vi.fn().mockReturnValue('Local'),
@@ -68,6 +70,50 @@ describe('FileSystemService', () => {
     expect(service).toBeTruthy();
   });
 
+  it('subscribes before an immediate picker result and correlates requests', async () => {
+    const results = new Subject<FilePickerResult>();
+    nautilusServiceMock.filePickerResult$ = results;
+    nautilusServiceMock.openFilePicker.mockImplementation((config: FilePickerConfig) => {
+      results.next({ cancelled: false, items: [], paths: ['wrong'], requestId: 'other' });
+      results.next({
+        cancelled: false,
+        items: [],
+        paths: ['NAS:Žlté files'],
+        requestId: config.requestId,
+      });
+      return Promise.resolve(true);
+    });
+    expect(
+      (await service.selectPathWithNautilus({ mode: 'both', selection: 'folders' })).paths
+    ).toEqual(['NAS:Žlté files']);
+    expect(results.observed).toBe(false);
+  });
+  it('returns cancellation instead of hanging when another picker is open', async () => {
+    const results = new Subject<FilePickerResult>();
+    nautilusServiceMock.filePickerResult$ = results;
+    nautilusServiceMock.openFilePicker.mockResolvedValue(false);
+    expect(
+      (await service.selectPathWithNautilus({ mode: 'both', selection: 'folders' })).cancelled
+    ).toBe(true);
+    expect(results.observed).toBe(false);
+  });
+  it('propagates opening errors and removes the subscription', async () => {
+    const results = new Subject<FilePickerResult>();
+    nautilusServiceMock.filePickerResult$ = results;
+    nautilusServiceMock.openFilePicker.mockRejectedValue(new Error('opening failed'));
+    await expect(
+      service.selectPathWithNautilus({ mode: 'both', selection: 'folders' })
+    ).rejects.toThrow('opening failed');
+    expect(results.observed).toBe(false);
+  });
+
+  it('normalizes native key-file cancellation without a notification', async () => {
+    Object.defineProperty(service, 'isTauri', { value: true, configurable: true });
+    apiClientMock.invoke.mockResolvedValueOnce(null);
+    expect(await service.selectFile()).toBe('');
+    expect(notificationServiceMock.showError).not.toHaveBeenCalled();
+    expect(notificationServiceMock.confirmModal).not.toHaveBeenCalled();
+  });
   describe('openInFiles', () => {
     it('should return immediately if path is empty', async () => {
       await service.openInFiles('');

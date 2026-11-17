@@ -50,13 +50,13 @@
       @if (config().startTime) {
         <div>
           <dt>{{ 'detailShared.jobInfo.started' | translate }}</dt>
-          <dd>{{ config().startTime | date: 'medium' }}</dd>
+          <dd>{{ config().startTime | date: ('shared.dateFormat' | translate) }}</dd>
         </div>
       }
       @if (config().endTime) {
         <div>
           <dt>{{ 'detailShared.jobInfo.finished' | translate }}</dt>
-          <dd>{{ config().endTime | date: 'medium' }}</dd>
+          <dd>{{ config().endTime | date: ('shared.dateFormat' | translate) }}</dd>
         </div>
       }
       @if (config().duration && config().running) {
@@ -138,6 +138,10 @@
         </div>
       }
     </div>
+  }
+
+  @if (config().dryRun) {
+    <p>{{ 'shared.monitor.previewHelp' | translate }}</p>
   }
 
   <app-transfer-activity-panel

@@ -105,7 +105,11 @@ export class JobMonitorComponent {
       completed: activity.completedTransfers,
       running,
       speedHistory: this.speedHistory(),
-    });
+    }).map(kpi =>
+      this.config().dryRun && kpi.key === 'speed'
+        ? { ...kpi, labelKey: 'shared.monitor.kpi.comparisonSpeed' }
+        : kpi
+    );
   });
 
   protected readonly spark = computed(() =>

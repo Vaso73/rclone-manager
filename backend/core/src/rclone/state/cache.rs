@@ -765,6 +765,7 @@ mod tests {
         let cache = RemoteCache::new();
         let mut old = profiled_mount("NAS:", "W:", "Disk");
         old.settings = Some(MountedSettings {
+            volume_name: None,
             source: "NAS:".into(),
             network_mode: Some(false),
             read_only: Some(true),

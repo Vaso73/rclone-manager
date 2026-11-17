@@ -16,6 +16,7 @@ import { BackendService } from '../services/infrastructure/system/backend.servic
 import { RemoteFileOperationsService } from '../services/remote/remote-file-operations.service';
 import { FileSystemService } from '../services/operations/file-system.service';
 import { NotificationService } from '../services/ui/notification.service';
+import { legacyArchiveDate } from './simple-history-path.util';
 import { SimpleTask, restoredHistoryName, safeHistoryName } from './simple-profile.util';
 
 @Component({
@@ -32,6 +33,16 @@ export class SimpleHistoryComponent implements OnDestroy {
   private readonly files = inject(FileSystemService);
   private readonly notifications = inject(NotificationService);
   private readonly translate = inject(TranslateService);
+  archiveLabel(name: string): string {
+    const date = legacyArchiveDate(name);
+    return date ? this.translate.instant('simple.history.legacyArchive', { date }) : name;
+  }
+  displayPath(): string {
+    return this.path()
+      .split('/')
+      .map(part => this.archiveLabel(part))
+      .join('/');
+  }
   readonly entries = signal<Entry[]>([]);
   readonly path = signal('');
   readonly busy = signal(false);

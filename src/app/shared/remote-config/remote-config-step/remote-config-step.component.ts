@@ -8,6 +8,9 @@ import {
   untracked,
   inject,
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  DestroyRef,
+  Injector,
 } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { toSignal } from '@angular/core/rxjs-interop';
@@ -31,6 +34,9 @@ import {
 } from 'src/app/services/remote/utils/command-options.util';
 import { findUniqueName } from 'src/app/services/remote/utils/unique-name.util';
 
+import { FileSystemService } from 'src/app/services/operations/file-system.service';
+import { BackendService } from 'src/app/services/infrastructure/system/backend.service';
+import { NotificationService } from 'src/app/services/ui/notification.service';
 import { UiStateService } from 'src/app/services/ui/state/ui-state.service';
 
 import {
@@ -182,6 +188,42 @@ export class RemoteConfigStepComponent {
       icon: this.iconService.getIconName(o.Value || 'hard-drive'),
     }));
   });
+
+  private readonly keyInjector = inject(Injector);
+  private readonly keyDestroyRef = inject(DestroyRef);
+  private readonly keyChangeDetector = inject(ChangeDetectorRef);
+  readonly keyPicking = signal(false);
+  async pickSshKey(): Promise<void> {
+    if (this.keyPicking() || this.disabled() || this.isLoading()) return;
+    const form = this.form();
+    const backend = this.keyInjector.get(BackendService);
+    const scope = backend.activeBackend();
+    const remote = form.get('name')?.value;
+    const type = form.get('type')?.value;
+    this.keyPicking.set(true);
+    try {
+      const path = await this.keyInjector
+        .get(FileSystemService)
+        .selectFile(form.get('key_file')?.value || undefined);
+      if (
+        path &&
+        !this.keyDestroyRef.destroyed &&
+        this.form() === form &&
+        backend.activeBackend() === scope &&
+        form.get('name')?.value === remote &&
+        form.get('type')?.value === type
+      ) {
+        const control = form.get('key_file');
+        control?.setValue(path);
+        control?.markAsDirty();
+        this.keyChangeDetector.markForCheck();
+      }
+    } catch (error) {
+      if (!this.keyDestroyRef.destroyed) this.keyInjector.get(NotificationService).showError(error);
+    } finally {
+      if (!this.keyDestroyRef.destroyed) this.keyPicking.set(false);
+    }
+  }
 
   readonly simpleSetup = input(false);
   readonly sameDriveScope = sameDriveScope;

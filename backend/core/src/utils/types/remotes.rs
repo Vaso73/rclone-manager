@@ -45,6 +45,8 @@ pub fn dest_path(rclone: &Value) -> Option<String> {
 /// Non-secret options captured from a successful mount, never inferred from later edits.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct MountedSettings {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub volume_name: Option<String>,
     pub source: String,
     pub network_mode: Option<bool>,
     pub read_only: Option<bool>,
@@ -168,6 +170,10 @@ pub struct ProfileParams {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct AppConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub simple_created: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub auto_start: bool,
     /// Seconds to wait after startup before an auto-start profile launches.
@@ -434,6 +440,8 @@ pub mod helper_config_keys {
 
 /// Keys that belong in the `app` partition (vs `rclone`).
 pub const APP_PARTITION_KEYS: &[&str] = &[
+    "displayName",
+    "simpleCreated",
     "autoStart",
     "autoStartDelay",
     "autoStartOncePerDay",

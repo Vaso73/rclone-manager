@@ -181,6 +181,10 @@ export interface RemoteConfigStepVisibility {
 }
 
 export interface AppConfig {
+  /** User-facing label; the profile key remains stable. */
+  displayName?: string;
+  /** Explicitly created/edited in the simple editor, not a generated template. */
+  simpleCreated?: boolean;
   autoStart?: boolean;
   /** Seconds to wait after startup before the profile auto-starts. */
   autoStartDelay?: number;
@@ -204,6 +208,8 @@ export interface AppConfig {
 export const DEFAULT_PROFILE_NAME = 'Default';
 
 export const APP_CONFIG_DEFAULTS: Readonly<Required<AppConfig>> = Object.freeze({
+  displayName: '',
+  simpleCreated: false,
   autoStart: false,
   autoStartDelay: 0,
   autoStartOncePerDay: false,

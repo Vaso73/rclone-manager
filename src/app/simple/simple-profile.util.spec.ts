@@ -3,6 +3,8 @@ import { DEFAULT_PROFILE_NAME, ProfileConfig } from '@app/types';
 import {
   SimpleTaskDraft,
   listSimpleTasks,
+  simpleTaskTemplate,
+  simpleVolumeName,
   patchSimpleProfile,
   restoredHistoryName,
   safeHistoryName,
@@ -323,5 +325,54 @@ describe('explicit disk apply', () => {
     expect(result.rclone?.['vfsOpt']).toEqual({ ReadOnly: false });
     expect(result.rclone?.['cacheDir']).toBe('/cache');
     expect(original).toEqual(before);
+  });
+});
+
+describe('stable disk labels and template presentation', () => {
+  it('updates the app label without renaming the profile or losing advanced options', () => {
+    const original = {
+      app: { filterProfile: 'Custom' },
+      rclone: { fs: 'NAS:', mountPoint: 'W:', mountOpt: { VolName: 'Before', Extra: true } },
+    };
+    const changed = patchSimpleProfile(
+      original,
+      draft({
+        operation: 'mount',
+        name: 'My disk',
+        source: 'NAS:',
+        destination: 'W:',
+        volumeName: 'NAS files',
+      })
+    );
+    expect(changed.app).toMatchObject({
+      displayName: 'My disk',
+      simpleCreated: true,
+      filterProfile: 'Custom',
+    });
+    expect(simpleVolumeName(changed)).toBe('NAS files');
+    expect(changed.rclone?.['mountOpt']).toMatchObject({ VolName: 'NAS files', Extra: true });
+    expect(original.rclone.mountOpt.VolName).toBe('Before');
+    const tasks = listSimpleTasks('NAS', { mountConfigs: { Default: changed } });
+    expect(tasks[0]).toMatchObject({ name: 'Default', displayName: 'My disk' });
+  });
+  it('groups only untouched root-source defaults and preserves intentional drafts and real Default jobs', () => {
+    const task = listSimpleTasks('NAS', {
+      syncConfigs: { Default: { app: {}, rclone: { srcFs: 'NAS:', dstFs: '' } } },
+    })[0];
+    expect(simpleTaskTemplate(task)).toBe(true);
+    expect(simpleTaskTemplate({ ...task, destination: '/mirror' })).toBe(false);
+    expect(simpleTaskTemplate({ ...task, name: 'My draft' })).toBe(false);
+    expect(
+      simpleTaskTemplate({ ...task, config: { ...task.config, app: { simpleCreated: true } } })
+    ).toBe(false);
+    expect(
+      simpleTaskTemplate({ ...task, config: { ...task.config, app: { filterProfile: 'Custom' } } })
+    ).toBe(false);
+    expect(
+      simpleTaskTemplate({
+        ...task,
+        config: { ...task.config, rclone: { srcFs: 'NAS:', dry_run: true } },
+      })
+    ).toBe(false);
   });
 });
