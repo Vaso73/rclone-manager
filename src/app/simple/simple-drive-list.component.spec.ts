@@ -20,6 +20,8 @@ import { JobManagementService } from '../services/operations/job-management.serv
 import { ModalService } from '../services/ui/modal.service';
 import { NotificationService } from '../services/ui/notification.service';
 import { NautilusService } from '../services/ui/nautilus.service';
+import { SimpleReorderDirective } from './simple-reorder.directive';
+import { LocalStorageService } from '../services/ui/state/local-storage.service';
 import { IconService } from '../services/ui/icon.service';
 
 describe('All connected disks with the actual workspace template', () => {
@@ -54,6 +56,7 @@ describe('All connected disks with the actual workspace template', () => {
     Mini: config('Mini:', 'Y:'),
   };
   beforeEach(() => {
+    const order = new Map<string, unknown>();
     vi.resetAllMocks();
     remotes.set([
       { name: 'Drive', type: 'drive' },
@@ -78,6 +81,15 @@ describe('All connected disks with the actual workspace template', () => {
     ]);
     TestBed.configureTestingModule({
       providers: [
+        {
+          provide: LocalStorageService,
+          useValue: {
+            getScoped: (_scope: string, key: string, fallback: unknown): unknown =>
+              order.get(key) ?? fallback,
+            setScoped: (_scope: string, key: string, value: unknown): Map<string, unknown> =>
+              order.set(key, value),
+          },
+        },
         provideHttpClient(),
         provideTranslateService(),
         {
@@ -85,6 +97,7 @@ describe('All connected disks with the actual workspace template', () => {
           useValue: {
             remoteSummaries: remotes,
             loading: signal(false),
+            jobs: signal([]),
             getRemoteSettings: (name: string): RemoteSettings => settings[name] ?? {},
             mountedRemotes: mounted,
             runningServes: signal([]),
@@ -126,6 +139,7 @@ describe('All connected disks with the actual workspace template', () => {
           DecimalPipe,
           PillDirective,
           SimpleDiskStateComponent,
+          SimpleReorderDirective,
         ],
         schemas: [NO_ERRORS_SCHEMA],
       },
@@ -136,6 +150,8 @@ describe('All connected disks with the actual workspace template', () => {
   });
   afterEach(() => {
     TestBed.resetTestingModule();
+    delete settings['Drive']['syncConfigs'];
+    delete settings['NAS']['copyConfigs'];
     vi.restoreAllMocks();
   });
   function findButton(parent: ParentNode, label: string): HTMLButtonElement {
@@ -231,5 +247,134 @@ describe('All connected disks with the actual workspace template', () => {
     const fixture = await create();
     expect(fixture.nativeElement.querySelectorAll('.drive-row')).toHaveLength(0);
     expect(fixture.nativeElement.textContent).toContain('simple.connections.first');
+  });
+  function taskProfiles(): void {
+    settings['Drive']['syncConfigs'] = {
+      Default: { rclone: { srcFs: 'Drive:' } },
+      Cross: {
+        app: { simpleCreated: true, backupHistoryDir: 'NAS:history' },
+        rclone: { srcFs: 'D:\\Apps', dstFs: 'NAS:mirror' },
+      },
+    };
+    settings['NAS']['copyConfigs'] = {
+      Download: {
+        app: { simpleCreated: true },
+        rclone: { srcFs: 'NAS:photos', dstFs: 'D:\\Photos' },
+      },
+    };
+  }
+  it('filters cards by actual source/target, keeps templates separate, and operates on the stored profile owner', async () => {
+    taskProfiles();
+    const fixture = await create();
+    fixture.componentInstance.navigate('tasks');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const element = fixture.nativeElement as HTMLElement;
+    expect(fixture.componentInstance.taskConnections().map(r => r.name)).toEqual(['NAS']);
+    expect(element.querySelectorAll('.connection-choice')).toHaveLength(1);
+    expect(element.querySelectorAll('.task-row')).toHaveLength(2);
+    expect(fixture.componentInstance.selected()).toBe('NAS');
+    const cross = Array.from(element.querySelectorAll('.task-row')).find(row =>
+      row.textContent?.includes('Cross')
+    );
+    if (!cross) throw new Error('Missing cross-owner task');
+    findButton(cross, 'simple.tasks.edit').click();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.validEditor()?.remote).toBe('Drive');
+    expect(fixture.componentInstance.validEditor()?.task?.name).toBe('Cross');
+    expect(start).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+  });
+  it('offers every connection when creating the first task, even when no selector cards are visible', async () => {
+    const fixture = await create();
+    fixture.componentInstance.navigate('tasks');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.querySelectorAll('.connection-choice')).toHaveLength(0);
+    findButton(element, 'simple.tasks.add').click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const menu = document.querySelector('.material-context-menu') as HTMLElement;
+    expect(menu.textContent).toContain('Drive');
+    expect(menu.textContent).toContain('NAS');
+    expect(menu.textContent).toContain('Mini');
+    findButton(menu, 'Mini').click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(fixture.componentInstance.validEditor()?.remote).toBe('Mini');
+    expect(start).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+  });
+  it('reorders live rows from keyboard handles and preserves transfer configuration and selected identity', async () => {
+    const before = structuredClone(settings);
+    const fixture = await create();
+    const element = fixture.nativeElement as HTMLElement;
+    const first = element.querySelector('.drive-row') as HTMLElement;
+    (first.querySelector('.reorder-handle') as HTMLButtonElement).dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })
+    );
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(
+      Array.from(element.querySelectorAll('.drive-row')).map(row => row.getAttribute('aria-label'))
+    ).toEqual(['NAS', 'Drive', 'Fotky', 'Mini']);
+    fixture.componentInstance.navigate('connections');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    (element.querySelector('.reorder-handle') as HTMLButtonElement).dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })
+    );
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(fixture.componentInstance.connections().map(r => r.name)).toEqual([
+      'NAS',
+      'Drive',
+      'Mini',
+    ]);
+    expect(settings).toEqual(before);
+    expect(start).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+  });
+  it('keeps archive browsing and run records reachable in compact history rows', async () => {
+    taskProfiles();
+    const fixture = await create();
+    fixture.componentInstance.navigate('history');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.querySelectorAll('.history-row')).toHaveLength(1);
+    expect(element.textContent).toContain('NAS:history');
+    findButton(element.querySelector('.history-row') as HTMLElement, 'simple.history.open').click();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.validHistory()?.name).toBe('Cross');
+    expect(element.querySelector('app-simple-history')).not.toBeNull();
+    expect(start).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+  });
+  it('hides the last removed task connection and selects a remaining valid card', async () => {
+    taskProfiles();
+    settings['NAS']['copyConfigs'] = {
+      Download: {
+        app: { simpleCreated: true },
+        rclone: { srcFs: 'Mini:photos', dstFs: 'D:\\Photos' },
+      },
+    };
+    const fixture = await create();
+    fixture.componentInstance.navigate('tasks');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(fixture.componentInstance.taskConnections().map(r => r.name)).toEqual(['NAS', 'Mini']);
+    fixture.componentInstance.selected.set('Mini');
+    fixture.detectChanges();
+    delete settings['NAS']['copyConfigs'];
+    remotes.update(value => [...value]);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(fixture.componentInstance.taskConnections().map(r => r.name)).toEqual(['NAS']);
+    expect(fixture.componentInstance.selected()).toBe('NAS');
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('.connection-choice')
+    ).toHaveLength(1);
   });
 });

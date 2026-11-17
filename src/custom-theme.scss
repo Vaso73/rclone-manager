@@ -1705,3 +1705,20 @@ mat-accordion:not(.dull) {
 *::after {
   -webkit-tap-highlight-color: transparent !important;
 }
+
+// Pointer reorder previews live outside their source component and never receive input.
+.simple-order-ghost {
+  position: fixed;
+  inset: 0 auto auto 0;
+  z-index: 10000;
+  pointer-events: none;
+  opacity: 0.75;
+  padding: var(--space-sm);
+  border-radius: var(--radius-sm);
+  border: thin solid var(--border-color);
+  box-shadow: var(--box-shadow);
+  background: var(--card-bg-color);
+  color: var(--window-fg-color);
+  max-height: 12rem;
+  overflow: hidden;
+}

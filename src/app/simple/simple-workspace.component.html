@@ -38,15 +38,21 @@
             ></app-simple-task-editor></mat-card-content
         ></mat-card>
       } @else if (page() === 'connections') {
-        <button matButton="filled" data-tone="primary" (click)="addConnection()">
-          <mat-icon svgIcon="plus"></mat-icon>{{ 'simple.connections.add' | translate }}
-        </button>
+        <div class="page-actions">
+          <button matButton="filled" data-tone="primary" (click)="addConnection()">
+            <mat-icon svgIcon="plus"></mat-icon>{{ 'simple.connections.add' | translate }}
+          </button>
+        </div>
         @if (facade.loading()) {
           <p role="status">{{ 'simple.loading' | translate }}</p>
         }
-        <div class="connection-list">
-          @for (remote of facade.remoteSummaries(); track remote.name) {
-            <mat-card class="connection-row" [attr.data-selected]="selected() === remote.name">
+        <div class="connection-list" [attr.data-order-group]="orderScope('connections')">
+          @for (remote of connections(); track remote.name) {
+            <mat-card
+              class="connection-row"
+              [attr.data-selected]="selected() === remote.name"
+              [attr.data-order-key]="remote.name"
+            >
               <div class="connection-identity">
                 <mat-icon [svgIcon]="icons.getIconName(remote.type)"></mat-icon>
                 <div>
@@ -64,6 +70,16 @@
                 </button>
                 <button matButton (click)="selected.set(remote.name); editConnection()">
                   {{ 'simple.connections.accountSettings' | translate }}
+                </button>
+                <button
+                  class="action-button reorder-handle"
+                  type="button"
+                  [appSimpleReorder]="remote.name"
+                  (reordered)="reorder('connections', $event)"
+                  [title]="'simple.order.move' | translate"
+                  [attr.aria-label]="'simple.order.move' | translate"
+                >
+                  <mat-icon svgIcon="drag-indicator"></mat-icon>
                 </button>
               </mat-card-actions>
             </mat-card>
@@ -94,7 +110,7 @@
               cdkMenu
               [attr.aria-label]="'simple.drives.chooseConnection' | translate"
             >
-              @for (remote of facade.remoteSummaries(); track remote.name) {
+              @for (remote of connections(); track remote.name) {
                 <button class="menu-item" cdkMenuItem (cdkMenuItemTriggered)="addDisk(remote.name)">
                   <mat-icon [svgIcon]="icons.getIconName(remote.type)"></mat-icon>{{ remote.name }}
                 </button>
@@ -104,11 +120,15 @@
           @if (facade.loading()) {
             <p role="status">{{ 'simple.loading' | translate }}</p>
           }
-          <div class="connection-list">
+          <div class="connection-list" [attr.data-order-group]="orderScope('drives')">
             @for (task of driveTasks(); track task.remote + task.operation + task.name) {
               @let activeDisk = mount(task);
               @let options = mountOptions(task);
-              <mat-card class="connection-row drive-row" [attr.aria-label]="driveLabel(task)">
+              <mat-card
+                class="connection-row drive-row"
+                [attr.aria-label]="driveLabel(task)"
+                [attr.data-order-key]="taskKey(task)"
+              >
                 <div class="connection-identity">
                   <mat-icon [svgIcon]="driveIcon(task)"></mat-icon>
                   <div>
@@ -180,6 +200,16 @@
                     <mat-icon svgIcon="settings"></mat-icon
                     >{{ 'simple.drives.settings' | translate }}
                   </button>
+                  <button
+                    class="action-button reorder-handle"
+                    type="button"
+                    [appSimpleReorder]="taskKey(task)"
+                    (reordered)="reorder('drives', $event)"
+                    [title]="'simple.order.move' | translate"
+                    [attr.aria-label]="'simple.order.move' | translate"
+                  >
+                    <mat-icon svgIcon="drag-indicator"></mat-icon>
+                  </button>
                 </mat-card-actions>
               </mat-card>
             } @empty {
@@ -218,29 +248,52 @@
               ><app-simple-history [task]="task"></app-simple-history></mat-card-content
           ></mat-card>
         } @else {
-          <p>{{ 'simple.history.locationsHelp' | translate }}</p>
-          @for (task of historyTasks(); track task.remote + task.operation + task.name) {
-            <mat-card
-              ><mat-card-header
-                ><mat-card-title>{{ label(task) }}</mat-card-title
-                ><mat-card-subtitle>{{ task.remote }}</mat-card-subtitle></mat-card-header
-              ><mat-card-content
-                ><p class="truncate" [title]="task.history">{{ task.history }}</p></mat-card-content
-              ><mat-card-actions
-                ><button matButton (click)="history.set(task)">
-                  {{ 'simple.history.open' | translate }}
-                </button></mat-card-actions
-              ></mat-card
-            >
-          } @empty {
-            <div class="empty-state">
-              <mat-icon svgIcon="clock"></mat-icon>
-              <p>{{ 'simple.history.noTasks' | translate }}</p>
-              <button matButton (click)="navigate('tasks')">
-                {{ 'simple.nav.tasks' | translate }}
-              </button>
-            </div>
-          }
+          <div class="page-actions">
+            <span class="section-label">{{ 'simple.history.locations' | translate }}</span>
+          </div>
+          <div class="connection-list" [attr.data-order-group]="orderScope('history')">
+            @for (task of historyTasks(); track taskKey(task)) {
+              <mat-card class="connection-row history-row" [attr.data-order-key]="taskKey(task)">
+                <div class="connection-identity">
+                  <mat-icon svgIcon="box-archive"></mat-icon>
+                  <div>
+                    <strong class="truncate" [title]="label(task)">{{ label(task) }}</strong>
+                    <span class="truncate" [title]="task.remote + ' · ' + task.history"
+                      >{{ task.remote }} · {{ task.history }}</span
+                    >
+                  </div>
+                </div>
+                <mat-card-actions>
+                  <button matButton (click)="history.set(task)">
+                    <mat-icon svgIcon="folder-open"></mat-icon
+                    >{{ 'simple.history.open' | translate }}
+                  </button>
+                  <button
+                    class="action-button reorder-handle"
+                    type="button"
+                    [appSimpleReorder]="taskKey(task)"
+                    (reordered)="reorder('history', $event)"
+                    [title]="'simple.order.move' | translate"
+                    [attr.aria-label]="'simple.order.move' | translate"
+                  >
+                    <mat-icon svgIcon="drag-indicator"></mat-icon>
+                  </button>
+                </mat-card-actions>
+              </mat-card>
+            } @empty {
+              <div class="empty-state">
+                <mat-icon svgIcon="clock"></mat-icon>
+                <p>{{ 'simple.history.noTasks' | translate }}</p>
+                <button matButton (click)="navigate('tasks')">
+                  {{ 'simple.nav.tasks' | translate }}
+                </button>
+              </div>
+            }
+          </div>
+          <details>
+            <summary>{{ 'simple.history.explanation' | translate }}</summary>
+            <p>{{ 'simple.history.locationsHelp' | translate }}</p>
+          </details>
         }
         <section class="detail-section">
           <h2>{{ 'simple.history.runs' | translate }}</h2>
@@ -271,145 +324,128 @@
           }
         </section>
       } @else {
-        <div class="connection-picker" [attr.aria-label]="'simple.nav.connections' | translate">
-          @for (remote of facade.remoteSummaries(); track remote.name) {
-            <button
-              appPill
-              tone="primary"
-              [selected]="selected() === remote.name"
-              (click)="selected.set(remote.name)"
-            >
-              {{ remote.name }}
-            </button>
-          }
+        <div class="page-actions task-toolbar">
+          <button
+            matButton="filled"
+            data-tone="primary"
+            [cdkMenuTriggerFor]="addTaskMenu"
+            [disabled]="pending() || !connections().length"
+          >
+            <mat-icon svgIcon="plus"></mat-icon>{{ 'simple.tasks.add' | translate }}
+          </button>
+          <div
+            class="connection-picker"
+            [attr.aria-label]="'simple.nav.connections' | translate"
+            [attr.data-order-group]="orderScope('connections')"
+          >
+            @for (remote of taskConnections(); track remote.name) {
+              <div
+                class="connection-choice"
+                [attr.data-order-key]="remote.name"
+                [attr.data-selected]="selected() === remote.name"
+              >
+                <button
+                  matButton
+                  [attr.aria-pressed]="selected() === remote.name"
+                  (click)="selected.set(remote.name)"
+                  [title]="remote.name"
+                >
+                  <mat-icon [svgIcon]="icons.getIconName(remote.type)"></mat-icon
+                  ><span class="truncate">{{ remote.name }}</span>
+                  @if (selected() === remote.name) {
+                    <mat-icon svgIcon="check-circle"></mat-icon>
+                  }
+                </button>
+                <button
+                  class="action-button reorder-handle"
+                  type="button"
+                  [appSimpleReorder]="remote.name"
+                  (reordered)="reorder('connections', $event)"
+                  [title]="'simple.order.move' | translate"
+                  [attr.aria-label]="'simple.order.move' | translate"
+                >
+                  <mat-icon svgIcon="drag-indicator"></mat-icon>
+                </button>
+              </div>
+            }
+          </div>
         </div>
-        @if (!selected()) {
+        <ng-template #addTaskMenu>
+          <div
+            class="material-context-menu"
+            cdkMenu
+            [attr.aria-label]="'simple.drives.chooseConnection' | translate"
+          >
+            @for (remote of connections(); track remote.name) {
+              <button class="menu-item" cdkMenuItem (cdkMenuItemTriggered)="addTask(remote.name)">
+                <mat-icon [svgIcon]="icons.getIconName(remote.type)"></mat-icon>{{ remote.name }}
+              </button>
+            }
+          </div>
+        </ng-template>
+        @if (!connections().length && !facade.loading()) {
           <div class="empty-state">
             <p>{{ 'simple.connections.first' | translate }}</p>
             <button matButton="filled" (click)="navigate('connections')">
               {{ 'simple.nav.connections' | translate }}
             </button>
           </div>
-        } @else {
-          <div class="page-actions">
-            <button matButton="filled" data-tone="primary" (click)="edit()">
-              <mat-icon svgIcon="plus"></mat-icon
-              >{{ (page() === 'drives' ? 'simple.drives.add' : 'simple.tasks.add') | translate }}
-            </button>
-            @if (page() === 'drives') {
-              <button matButton (click)="navigate('tasks')">
-                {{ 'simple.drives.skip' | translate }}
-              </button>
-            }
-          </div>
-          @if (templates().length) {
-            <details class="detail-section">
-              <summary>
-                {{ 'simple.tasks.templates' | translate: { count: templates().length } }}
-              </summary>
-              <p>{{ 'simple.tasks.templatesHelp' | translate }}</p>
-              @for (task of templates(); track task.remote + task.operation + task.name) {
-                <div class="card-row-item">
-                  <span>{{ 'simple.operations.' + task.operation | translate }}</span>
-                  <button matButton (click)="edit(task)">
-                    {{ 'simple.tasks.configure' | translate }}
-                  </button>
-                  <button matButton (click)="remove(task)" [disabled]="pending() || active(task)">
-                    {{ 'simple.tasks.delete' | translate }}
-                  </button>
-                </div>
-              }
-            </details>
-          }
-          @for (task of visibleTasks(); track task.remote + task.operation + task.name) {
-            <mat-card [attr.data-tone]="tones[task.operation]">
-              <mat-card-header
-                ><mat-card-title>{{ label(task) }}</mat-card-title
-                ><mat-card-subtitle>{{
-                  'simple.operations.' + task.operation | translate
-                }}</mat-card-subtitle></mat-card-header
-              >
-              <mat-card-content>
-                @if (!ready(task)) {
-                  <span appPill tone="orange" size="sm">{{
-                    'simple.tasks.needsSetup' | translate
-                  }}</span>
-                }
-                <details>
-                  <summary>
-                    {{
-                      (task.operation === 'mount'
-                        ? 'simple.drives.explanation'
-                        : 'simple.tasks.explanation'
-                      ) | translate
-                    }}
-                  </summary>
-                  <p>{{ 'simple.operationHelp.' + task.operation | translate }}</p>
-                </details>
-                <div class="task-path">
-                  <span>{{ 'simple.tasks.source' | translate }}</span
-                  ><strong class="truncate" [title]="task.source">{{ task.source }}</strong>
-                </div>
-                @if (task.destination && task.operation !== 'mount') {
-                  <div class="task-path">
-                    <span>{{ 'simple.tasks.destination' | translate }}</span
-                    ><strong
-                      class="truncate"
-                      [title]="mount(task)?.mount_point || task.destination"
-                      >{{ mount(task)?.mount_point || task.destination }}</strong
+        }
+        <div class="connection-list" [attr.data-order-group]="orderScope('tasks')">
+          @for (task of visibleTasks(); track taskKey(task)) {
+            <mat-card
+              class="connection-row task-row"
+              [attr.data-tone]="tones[task.operation]"
+              [attr.data-order-key]="taskKey(task)"
+            >
+              <div class="connection-identity">
+                <mat-icon [svgIcon]="taskIcon(task)"></mat-icon>
+                <div>
+                  <div class="drive-heading">
+                    <button
+                      type="button"
+                      class="task-label truncate"
+                      [title]="label(task)"
+                      [attr.aria-expanded]="expanded() === taskKey(task)"
+                      (click)="toggleTask(task)"
                     >
-                  </div>
-                }
-                @if (task.history && ready(task)) {
-                  <span appPill size="xs" tone="dim">{{
-                    'simple.history.activeLabel' | translate
-                  }}</span>
-                }
-                @if ((task.operation === 'mount' || task.operation === 'serve') && active(task)) {
-                  <span appPill tone="primary" size="sm">{{
-                    'simple.status.Connected' | translate
-                  }}</span>
-                }
-                @if (task.operation === 'mount') {
-                  @let options = mountOptions(task);
-                  <app-simple-disk-state
-                    [active]="mount(task)"
-                    [source]="task.source"
-                    [destination]="task.destination"
-                    [networkDrive]="options.networkDrive"
-                    [readOnly]="options.readOnly"
-                    [volumeName]="volumeName(task.config)"
-                  ></app-simple-disk-state>
-                }
-                @if (task.operation !== 'mount' && latest(task); as job) {
-                  <div class="card-row-item">
+                      {{ label(task) }}
+                    </button>
                     <span
-                      appPill
-                      [tone]="
-                        job.status === 'Failed'
-                          ? 'warn'
-                          : job.status === 'Running'
-                            ? 'accent'
-                            : 'primary'
-                      "
-                      size="sm"
-                      >{{ 'simple.status.' + job.status | translate }}</span
+                      class="task-kind truncate"
+                      [title]="'simple.operations.' + task.operation | translate"
+                      >{{ 'simple.operations.' + task.operation | translate }}</span
                     >
-                    @if (job.dry_run) {
-                      <span appPill tone="dim" size="sm">{{
-                        'simple.tasks.preview' | translate
+                    @if (!ready(task)) {
+                      <span appPill tone="orange" size="xs">{{
+                        'simple.tasks.needsSetup' | translate
                       }}</span>
                     }
-                    <span
-                      >{{ job.stats.bytes | number }} B · {{ job.stats.errors | number }}
-                      {{ 'simple.tasks.errors' | translate }}</span
-                    ><span>{{ job.start_time | date: ('simple.dateFormat' | translate) }}</span
-                    ><button matButton (click)="details(job)">
-                      {{ 'simple.tasks.result' | translate }}
-                    </button>
+                    @if (task.history && ready(task)) {
+                      <span
+                        appPill
+                        tone="dim"
+                        size="xs"
+                        [title]="'simple.history.activeLabel' | translate"
+                        >{{ 'simple.history.shortLabel' | translate }}</span
+                      >
+                    }
+                    @if (task.operation === 'serve' && active(task)) {
+                      <span appPill tone="primary" size="xs">{{
+                        'simple.status.Connected' | translate
+                      }}</span>
+                    }
                   </div>
-                }
-              </mat-card-content>
+                  <span class="truncate" [title]="task.source"
+                    >{{ 'simple.tasks.source' | translate }} {{ task.source }}</span
+                  >
+                  @if (task.destination) {
+                    <span class="truncate" [title]="task.destination"
+                      >{{ 'simple.tasks.destination' | translate }} {{ task.destination }}</span
+                    >
+                  }
+                </div>
+              </div>
               <mat-card-actions>
                 @if (
                   task.operation !== 'mount' &&
@@ -465,22 +501,100 @@
                     data-tone="warn"
                     (click)="remove(task)"
                     [disabled]="pending() || active(task)"
+                    [title]="'simple.tasks.delete' | translate"
                   >
-                    {{ 'simple.tasks.delete' | translate }}
+                    {{ 'common.delete' | translate }}
                   </button>
                 }
+                <button
+                  class="action-button reorder-handle"
+                  type="button"
+                  [appSimpleReorder]="taskKey(task)"
+                  (reordered)="reorder('tasks', $event)"
+                  [title]="'simple.order.move' | translate"
+                  [attr.aria-label]="'simple.order.move' | translate"
+                >
+                  <mat-icon svgIcon="drag-indicator"></mat-icon>
+                </button>
               </mat-card-actions>
+              @if (latest(task); as job) {
+                <div class="task-result">
+                  <span
+                    appPill
+                    [tone]="
+                      job.status === 'Failed'
+                        ? 'warn'
+                        : job.status === 'Running'
+                          ? 'accent'
+                          : 'primary'
+                    "
+                    size="xs"
+                    >{{ 'simple.status.' + job.status | translate }}</span
+                  >
+                  @if (job.dry_run) {
+                    <span appPill tone="dim" size="xs">{{
+                      'simple.tasks.preview' | translate
+                    }}</span>
+                  }
+                  <span
+                    >{{ job.stats.bytes | number }} B · {{ job.stats.errors | number }}
+                    {{ 'simple.tasks.errors' | translate }}</span
+                  >
+                  <span>{{ job.start_time | date: ('simple.dateFormat' | translate) }}</span>
+                  <button matButton (click)="details(job)">
+                    {{ 'simple.tasks.result' | translate }}
+                  </button>
+                </div>
+              }
+              @if (expanded() === taskKey(task)) {
+                <div class="task-expanded detail-section">
+                  <p>{{ 'simple.operationHelp.' + task.operation | translate }}</p>
+                  <div class="task-path">
+                    <span>{{ 'simple.tasks.source' | translate }}</span
+                    ><strong>{{ task.source }}</strong>
+                  </div>
+                  @if (task.destination) {
+                    <div class="task-path">
+                      <span>{{ 'simple.tasks.destination' | translate }}</span
+                      ><strong>{{ task.destination }}</strong>
+                    </div>
+                  }
+                  @if (task.history) {
+                    <div class="task-path">
+                      <span>{{ 'simple.nav.history' | translate }}</span
+                      ><strong>{{ task.history }}</strong>
+                    </div>
+                  }
+                </div>
+              }
             </mat-card>
           } @empty {
-            <div class="empty-state">
-              <mat-icon [svgIcon]="page() === 'drives' ? 'hard-drive' : 'check-list'"></mat-icon>
-              <p>
-                {{
-                  (page() === 'drives' ? 'simple.drives.empty' : 'simple.tasks.empty') | translate
-                }}
-              </p>
-            </div>
+            @if (!facade.loading()) {
+              <div class="empty-state">
+                <mat-icon svgIcon="check-list"></mat-icon>
+                <p>{{ 'simple.tasks.empty' | translate }}</p>
+              </div>
+            }
           }
+        </div>
+        @if (templates().length) {
+          <details class="detail-section">
+            <summary>
+              {{ 'simple.tasks.templates' | translate: { count: templates().length } }}
+            </summary>
+            <p>{{ 'simple.tasks.templatesHelp' | translate }}</p>
+            @for (task of templates(); track taskKey(task)) {
+              <div class="card-row-item">
+                <strong>{{ task.remote }}</strong
+                ><span>{{ 'simple.operations.' + task.operation | translate }}</span
+                ><button matButton (click)="edit(task)">
+                  {{ 'simple.tasks.configure' | translate }}</button
+                ><button matButton (click)="remove(task)" [disabled]="pending() || active(task)">
+                  {{ 'simple.tasks.delete' | translate }}
+                </button>
+              </div>
+            }
+          </details>
         }
       }
     </main>

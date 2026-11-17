@@ -49,6 +49,9 @@ import {
 import { SimpleTaskEditorComponent } from './simple-task-editor.component';
 import { SimpleDiskStateComponent } from './simple-disk-state.component';
 import { SimpleHistoryComponent } from './simple-history.component';
+import { SimpleCardOrderService } from './simple-card-order.service';
+import { SimpleReorderDirective, SimpleCardMove } from './simple-reorder.directive';
+import { simpleTaskConnections, simpleTaskKey } from './simple-task-connections.util';
 
 type SimplePage = 'connections' | 'drives' | 'tasks' | 'history';
 @Component({
@@ -66,6 +69,7 @@ type SimplePage = 'connections' | 'drives' | 'tasks' | 'history';
     SimpleTaskEditorComponent,
     SimpleHistoryComponent,
     SimpleDiskStateComponent,
+    SimpleReorderDirective,
     DatePipe,
     DecimalPipe,
   ],
@@ -108,7 +112,58 @@ export class SimpleWorkspaceComponent {
     { key: 'tasks', icon: 'check-list' },
     { key: 'history', icon: 'clock' },
   ];
-  readonly selected = linkedSignal(() => this.facade.remoteSummaries()[0]?.name ?? '');
+  private readonly cardOrder = inject(SimpleCardOrderService);
+  readonly connections = computed(() =>
+    this.cardOrder.sorted(
+      this.backend.activeBackend(),
+      'connections',
+      this.facade.remoteSummaries(),
+      remote => remote.name
+    )
+  );
+  readonly taskConnections = computed(() => {
+    const connections = this.connections();
+    const names = connections.map(remote => remote.name);
+    const used = new Set(
+      this.allTasks()
+        .filter(task => task.operation !== 'mount' && !this.isUnusedTemplate(task))
+        .flatMap(task => simpleTaskConnections(task, names))
+    );
+    return connections.filter(remote => used.has(remote.name));
+  });
+  readonly selected = linkedSignal<string[], string>({
+    source: () =>
+      (this.page() === 'tasks' ? this.taskConnections() : this.connections()).map(
+        remote => remote.name
+      ),
+    computation: (names, previous) =>
+      previous && names.includes(previous.value) ? previous.value : (names[0] ?? ''),
+  });
+  readonly taskKey = simpleTaskKey;
+  orderScope(group: string): string {
+    return JSON.stringify([this.backend.activeBackend(), group]);
+  }
+  reorder(group: string, move: SimpleCardMove): void {
+    const keys =
+      group === 'connections'
+        ? this.connections().map(remote => remote.name)
+        : group === 'drives'
+          ? this.driveTasks().map(simpleTaskKey)
+          : group === 'history'
+            ? this.historyTasks().map(simpleTaskKey)
+            : this.visibleTasks().map(simpleTaskKey);
+    this.cardOrder.move(
+      this.backend.activeBackend(),
+      group === 'tasks' ? JSON.stringify(['tasks', this.selected()]) : group,
+      keys,
+      move.from,
+      move.to
+    );
+  }
+  addTask(remote: string): void {
+    if (this.pending() || !this.facade.isRemoteActive(remote)) return;
+    this.editor.set({ remote, mount: false, backend: this.backend.activeBackend() });
+  }
   readonly editor = signal<{
     remote: string;
     task?: SimpleTask;
@@ -116,26 +171,50 @@ export class SimpleWorkspaceComponent {
     backend: string;
   } | null>(null);
   readonly history = signal<SimpleTask | null>(null);
+  readonly expanded = signal<string | null>(null);
+  toggleTask(task: SimpleTask): void {
+    this.expanded.update(value => (value === simpleTaskKey(task) ? null : simpleTaskKey(task)));
+  }
   readonly pending = signal(false);
   readonly tones = OPERATION_TONE;
+  taskIcon(task: SimpleTask): string {
+    return (
+      OPERATION_REGISTRY.find(operation => operation.key === task.operation)?.icon ?? 'operations'
+    );
+  }
   readonly allTasks = computed(() =>
     this.facade
       .remoteSummaries()
       .flatMap(remote => listSimpleTasks(remote.name, this.facade.getRemoteSettings(remote.name)))
   );
-  readonly driveTasks = computed(() => this.allTasks().filter(task => task.operation === 'mount'));
+  readonly driveTasks = computed(() =>
+    this.cardOrder.sorted(
+      this.backend.activeBackend(),
+      'drives',
+      this.allTasks().filter(task => task.operation === 'mount'),
+      simpleTaskKey
+    )
+  );
   readonly matchingTasks = computed(() =>
     this.allTasks().filter(
       task =>
-        task.remote === this.selected() &&
+        simpleTaskConnections(
+          task,
+          this.connections().map(remote => remote.name)
+        ).includes(this.selected()) &&
         (this.page() === 'drives' ? task.operation === 'mount' : task.operation !== 'mount')
     )
   );
   readonly visibleTasks = computed(() =>
-    this.matchingTasks().filter(task => !this.isUnusedTemplate(task))
+    this.cardOrder.sorted(
+      this.backend.activeBackend(),
+      JSON.stringify(['tasks', this.selected()]),
+      this.matchingTasks().filter(task => !this.isUnusedTemplate(task)),
+      simpleTaskKey
+    )
   );
   readonly templates = computed(() =>
-    this.matchingTasks().filter(task => this.isUnusedTemplate(task))
+    this.allTasks().filter(task => task.operation !== 'mount' && this.isUnusedTemplate(task))
   );
 
   isUnusedTemplate(task: SimpleTask): boolean {
@@ -172,7 +251,14 @@ export class SimpleWorkspaceComponent {
     }
   }
 
-  readonly historyTasks = computed(() => this.allTasks().filter(task => !!task.history));
+  readonly historyTasks = computed(() =>
+    this.cardOrder.sorted(
+      this.backend.activeBackend(),
+      'history',
+      this.allTasks().filter(task => !!task.history),
+      simpleTaskKey
+    )
+  );
   readonly validEditor = computed(() => {
     const editor = this.editor();
     return editor?.backend === this.backend.activeBackend() &&

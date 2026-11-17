@@ -4874,7 +4874,9 @@
       "locationsHelp": "Configured archive locations. Contents and availability are checked when opened.",
       "unnamedRun": "Standalone run",
       "otherOperation": "Other operation",
-      "modeUnknown": "Run mode unknown"
+      "modeUnknown": "Run mode unknown",
+      "locations": "Locais do histórico",
+      "shortLabel": "Histórico"
     },
     "status": {
       "Running": "Running",
@@ -4912,6 +4914,9 @@
       "readOnly": "Read only",
       "existing": "Existing advanced permissions"
     },
-    "dateFormat": "yyyy-MM-dd HH:mm"
+    "dateFormat": "yyyy-MM-dd HH:mm",
+    "order": {
+      "move": "Arraste para reordenar este cartão ou use as teclas de seta"
+    }
   }
 }

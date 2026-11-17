@@ -4874,7 +4874,9 @@
       "locationsHelp": "Configured archive locations. Contents and availability are checked when opened.",
       "unnamedRun": "Standalone run",
       "otherOperation": "Other operation",
-      "modeUnknown": "Run mode unknown"
+      "modeUnknown": "Run mode unknown",
+      "locations": "歷史版本位置",
+      "shortLabel": "歷史"
     },
     "status": {
       "Running": "Running",
@@ -4912,6 +4914,9 @@
       "readOnly": "Read only",
       "existing": "Existing advanced permissions"
     },
-    "dateFormat": "yyyy-MM-dd HH:mm"
+    "dateFormat": "yyyy-MM-dd HH:mm",
+    "order": {
+      "move": "拖曳或使用方向鍵調整卡片順序"
+    }
   }
 }

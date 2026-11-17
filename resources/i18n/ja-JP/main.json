@@ -4874,7 +4874,9 @@
       "locationsHelp": "Configured archive locations. Contents and availability are checked when opened.",
       "unnamedRun": "Standalone run",
       "otherOperation": "Other operation",
-      "modeUnknown": "Run mode unknown"
+      "modeUnknown": "Run mode unknown",
+      "locations": "履歴の保存先",
+      "shortLabel": "履歴"
     },
     "status": {
       "Running": "Running",
@@ -4912,6 +4914,9 @@
       "readOnly": "Read only",
       "existing": "Existing advanced permissions"
     },
-    "dateFormat": "yyyy-MM-dd HH:mm"
+    "dateFormat": "yyyy-MM-dd HH:mm",
+    "order": {
+      "move": "ドラッグまたは矢印キーでカードの順序を変更"
+    }
   }
 }

@@ -4874,7 +4874,9 @@
       "locationsHelp": "Nastavené miesta pre staršie verzie. Obsah a dostupnosť sa overia až po otvorení.",
       "unnamedRun": "Samostatný beh",
       "otherOperation": "Iná operácia",
-      "modeUnknown": "Režim nezistený"
+      "modeUnknown": "Režim nezistený",
+      "locations": "Miesta starších verzií",
+      "shortLabel": "História"
     },
     "status": {
       "Running": "Prebieha",
@@ -4912,6 +4914,9 @@
       "readOnly": "Iba čítanie",
       "existing": "Pôvodné pokročilé nastavenie"
     },
-    "dateFormat": "dd.MM.yyyy HH:mm"
+    "dateFormat": "dd.MM.yyyy HH:mm",
+    "order": {
+      "move": "Presuň kartu potiahnutím alebo klávesmi šípok"
+    }
   }
 }
