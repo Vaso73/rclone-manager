@@ -19,6 +19,7 @@ import { MainUiOverlayService } from 'src/app/services/ui/main-ui-overlay.servic
 import { LongPressDirective } from 'src/app/shared/directives/long-press.directive';
 import { SlideMenuController } from 'src/app/shared/utils';
 import { Theme, MainView } from '@app/types';
+import { InterfaceModeService } from '../../../simple/interface-mode.service';
 
 @Component({
   selector: 'app-menu',
@@ -37,6 +38,7 @@ import { Theme, MainView } from '@app/types';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AppMenuComponent {
+  readonly interfaceMode = inject(InterfaceModeService);
   private readonly modalService = inject(ModalService);
   private readonly backupRestoreUiService = inject(BackupRestoreUiService);
   private readonly nautilusService = inject(NautilusService);

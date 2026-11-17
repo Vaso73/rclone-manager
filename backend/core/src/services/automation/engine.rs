@@ -523,6 +523,7 @@ async fn run_profile(
     };
     let params = ProfileParams {
         remote_name: automation.remote_name.clone(),
+        dry_run: None,
         profile_name: automation.profile_name.clone(),
         backend_name: Some(automation.backend_name.clone()),
         source: Some(Origin::Automation),

@@ -1,0 +1,167 @@
+<form class="detail-section" (ngSubmit)="save()">
+  <h2>
+    {{
+      (task()
+        ? 'simple.tasks.edit'
+        : draft.operation === 'mount'
+          ? 'simple.drives.add'
+          : 'simple.tasks.add'
+      ) | translate
+    }}
+  </h2>
+  @if (task()?.multipleSources) {
+    <p role="alert">{{ 'simple.tasks.complex' | translate }}</p>
+  }
+  <div class="editor-fields">
+    <mat-form-field
+      ><mat-label>{{ 'simple.tasks.name' | translate }}</mat-label
+      ><input matInput name="name" [(ngModel)]="draft.name" [readonly]="!!task()" required
+    /></mat-form-field>
+    @if (draft.operation !== 'mount') {
+      <mat-form-field
+        ><mat-label>{{ 'simple.tasks.action' | translate }}</mat-label
+        ><mat-select name="operation" [(ngModel)]="draft.operation" [disabled]="!!task()">
+          @for (op of operations; track op) {
+            <mat-option [value]="op">{{ 'simple.operations.' + op | translate }}</mat-option>
+          }
+        </mat-select></mat-form-field
+      >
+    }
+  </div>
+  <p>{{ operationHint() }}</p>
+  <div class="path-field">
+    <mat-form-field
+      ><mat-label>{{ 'simple.tasks.source' | translate }}</mat-label
+      ><input matInput name="source" [(ngModel)]="draft.source" required
+    /></mat-form-field>
+    <button
+      matIconButton
+      type="button"
+      (click)="pick('source')"
+      [title]="'simple.tasks.browse' | translate"
+    >
+      <mat-icon svgIcon="folder-open"></mat-icon>
+    </button>
+  </div>
+  @if (draft.operation !== 'serve') {
+    <div class="path-field">
+      <mat-form-field
+        ><mat-label>{{
+          (draft.operation === 'mount' ? 'simple.drives.mountPoint' : 'simple.tasks.destination')
+            | translate
+        }}</mat-label
+        ><input matInput name="destination" [(ngModel)]="draft.destination" required
+      /></mat-form-field>
+      @if (draft.operation !== 'mount') {
+        <button
+          matIconButton
+          type="button"
+          (click)="pick('destination')"
+          [title]="'simple.tasks.browse' | translate"
+        >
+          <mat-icon svgIcon="folder-open"></mat-icon>
+        </button>
+      }
+    </div>
+  }
+  @if (draft.operation === 'mount') {
+    <p>{{ 'simple.drives.pathHelp' | translate }}</p>
+    @if (backend.isWindows()) {
+      <mat-checkbox name="network" [(ngModel)]="draft.networkDrive">{{
+        'simple.drives.network' | translate
+      }}</mat-checkbox>
+    }
+    <mat-checkbox name="readonly" [(ngModel)]="draft.readOnly">{{
+      'simple.drives.readOnly' | translate
+    }}</mat-checkbox>
+  }
+  @if (draft.operation === 'serve') {
+    <div class="editor-fields">
+      <mat-form-field
+        ><mat-label>{{ 'simple.tasks.protocol' | translate }}</mat-label
+        ><mat-select name="protocol" [(ngModel)]="draft.serveType"
+          ><mat-option value="http">HTTP</mat-option><mat-option value="webdav">WebDAV</mat-option
+          ><mat-option value="sftp">SFTP</mat-option></mat-select
+        ></mat-form-field
+      >
+      <mat-form-field
+        ><mat-label>{{ 'simple.tasks.address' | translate }}</mat-label
+        ><input matInput name="address" [(ngModel)]="draft.address" required
+      /></mat-form-field>
+    </div>
+    <p>{{ 'simple.tasks.serveHelp' | translate }}</p>
+  }
+  @if (['sync', 'copy', 'move'].includes(draft.operation)) {
+    <div class="path-field">
+      <mat-form-field
+        ><mat-label>{{ 'simple.history.folder' | translate }}</mat-label
+        ><input matInput name="history" [(ngModel)]="draft.history"
+      /></mat-form-field>
+      <button
+        matIconButton
+        type="button"
+        (click)="pick('history')"
+        [title]="'simple.tasks.browse' | translate"
+      >
+        <mat-icon svgIcon="folder-open"></mat-icon>
+      </button>
+    </div>
+    <p>{{ 'simple.history.help' | translate }}</p>
+    @if (vss.supported() && ['sync', 'copy'].includes(draft.operation)) {
+      <mat-checkbox name="vss" [(ngModel)]="draft.useVss">{{
+        'simple.tasks.vss' | translate
+      }}</mat-checkbox>
+      <p>{{ 'simple.tasks.vssHelp' | translate }}</p>
+      @if (draft.useVss && !vss.status()?.ready) {
+        <button matButton type="button" (click)="enableVss()" [disabled]="vss.pending()">
+          {{ 'simple.tasks.enableVss' | translate }}
+        </button>
+      }
+    }
+  }
+  <div class="editor-fields">
+    <mat-form-field
+      ><mat-label>{{ 'simple.tasks.schedule' | translate }}</mat-label
+      ><mat-select name="schedule" [(ngModel)]="draft.schedule">
+        <mat-option value="manual">{{ 'simple.schedule.manual' | translate }}</mat-option
+        ><mat-option value="startup">{{ 'simple.schedule.startup' | translate }}</mat-option
+        ><mat-option value="daily">{{ 'simple.schedule.daily' | translate }}</mat-option>
+        @if (task()) {
+          <mat-option value="custom">{{ 'simple.schedule.custom' | translate }}</mat-option>
+        }
+      </mat-select></mat-form-field
+    >
+    @if (draft.schedule === 'daily') {
+      <mat-form-field
+        ><mat-label>{{ 'simple.tasks.time' | translate }}</mat-label
+        ><input matInput type="time" name="time" [(ngModel)]="draft.time" required
+      /></mat-form-field>
+    }
+  </div>
+  @if (draft.schedule === 'startup') {
+    <mat-checkbox name="daily" [(ngModel)]="draft.oncePerDay">{{
+      'simple.schedule.oncePerDay' | translate
+    }}</mat-checkbox>
+  }
+  @if (draft.schedule === 'custom') {
+    <p>{{ 'simple.schedule.preserved' | translate }}</p>
+  }
+  @if (task()) {
+    <p>{{ 'simple.tasks.preserved' | translate }}</p>
+  }
+  @if (error()) {
+    <p role="alert" data-tone="warn">{{ error() | translate }}</p>
+  }
+  <footer class="editor-actions">
+    <button matButton type="button" (click)="cancelled.emit()" [disabled]="busy()">
+      {{ 'common.cancel' | translate }}</button
+    ><button
+      matButton="filled"
+      type="submit"
+      data-tone="primary"
+      [disabled]="busy() || !!task()?.multipleSources"
+    >
+      {{ 'simple.tasks.saveOnly' | translate }}
+    </button>
+  </footer>
+</form>

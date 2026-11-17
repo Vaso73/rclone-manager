@@ -1,6 +1,55 @@
-//! Version history uses rclone's backup-dir, with a fresh directory for each run.
+//! Version history keeps the source tree, adding timestamps to archived filenames.
 //! Existing advanced flags are untouched unless the optional history setting is enabled.
+use std::fs::OpenOptions;
+use std::path::Path;
+
+use crate::context::AppHandle;
+use crate::services::paths::AppPaths;
 use serde_json::Value;
+
+fn state_error() -> String {
+    crate::localized_error!("backendErrors.backup.historyStateInvalid")
+}
+
+/// Atomic receipts prevent timestamp reuse across processes and restarts on this installation.
+/// No remote path or credentials are written here; previews never create state.
+fn reserve_at(
+    directory: &Path,
+    now: chrono::DateTime<chrono::Local>,
+    dry_run: bool,
+) -> Result<String, String> {
+    if !dry_run {
+        std::fs::create_dir_all(directory).map_err(|_| state_error())?;
+    }
+    for offset in 0..10_000 {
+        let time = now
+            .checked_add_signed(chrono::Duration::milliseconds(offset))
+            .ok_or_else(state_error)?;
+        let stamp = time.format("%Y-%m-%d_%H-%M-%S%.3f").to_string();
+        if dry_run {
+            return Ok(stamp);
+        }
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(directory.join(&stamp))
+        {
+            Ok(_) => return Ok(stamp),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(_) => return Err(state_error()),
+        }
+    }
+    Err(state_error())
+}
+
+pub fn reserve_run(app: &AppHandle, dry_run: bool) -> Result<String, String> {
+    let paths = AppPaths::from_app_handle(app).map_err(|_| state_error())?;
+    reserve_at(
+        &paths.config_dir.join("backup-history-runs"),
+        chrono::Local::now(),
+        dry_run,
+    )
+}
 
 #[derive(Debug, PartialEq, Eq)]
 struct Location {
@@ -119,7 +168,15 @@ fn backup_key(key: &str) -> bool {
         .eq_ignore_ascii_case("backupdir")
 }
 
-/// One frozen run name is shared by its batch. Multiple sources have separate archives.
+fn managed_key(key: &str) -> bool {
+    backup_key(key)
+        || matches!(
+            key.replace(['_', '-'], "").to_ascii_lowercase().as_str(),
+            "suffix" | "suffixkeepextension"
+        )
+}
+
+/// One timestamp is shared by a batch. Multiple source roots remain separated.
 pub fn apply(
     config: &mut Value,
     root: &str,
@@ -136,8 +193,12 @@ pub fn apply(
     }
     let object = config.as_object_mut().ok_or_else(invalid)?;
     let conflict = |map: &serde_json::Map<String, Value>| {
-        map.iter()
-            .any(|(key, value)| backup_key(key) && !value.is_null() && value.as_str() != Some(""))
+        map.iter().any(|(key, value)| {
+            managed_key(key)
+                && !value.is_null()
+                && value.as_str() != Some("")
+                && value.as_bool() != Some(false)
+        })
     };
     if conflict(object)
         || object
@@ -150,15 +211,17 @@ pub fn apply(
         ));
     }
     // Remove empty aliases so there is exactly one canonical backup-dir value in the payload.
-    object.retain(|key, _| !backup_key(key));
+    object.retain(|key, _| !managed_key(key));
     if let Some(nested) = object.get_mut("_config").and_then(Value::as_object_mut) {
-        nested.retain(|key, _| !backup_key(key));
+        nested.retain(|key, _| !managed_key(key));
     }
-    let mut path = format!("{}/{run}", root.trim_end_matches('/'));
+    let mut path = root.trim_end_matches('/').to_string();
     if source_count > 1 {
         path.push_str(&format!("/source-{}", source_index + 1));
     }
     object.insert("BackupDir".to_string(), Value::String(path));
+    object.insert("Suffix".to_string(), Value::String(format!("_{run}")));
+    object.insert("SuffixKeepExtension".to_string(), Value::Bool(true));
     Ok(())
 }
 
@@ -248,19 +311,25 @@ mod tests {
         .unwrap();
         assert_eq!(
             config,
-            json!({"checksum": true, "BackupDir": "NAS:history/2026-11-16_15-00-00_run1"})
+            json!({"checksum": true, "BackupDir": "NAS:history", "Suffix": "_2026-11-16_15-00-00_run1", "SuffixKeepExtension": true})
         );
         let mut second = json!({});
         apply(&mut second, "NAS:history", "2026-11-16_15-00-00_run2", 1, 2).unwrap();
-        assert_eq!(
-            second["BackupDir"],
-            "NAS:history/2026-11-16_15-00-00_run2/source-2"
-        );
+        assert_eq!(second["BackupDir"], "NAS:history/source-2");
     }
 
     #[test]
     fn advanced_backup_dir_conflicts_are_rejected_without_mutation() {
-        for key in ["backup_dir", "backup-dir", "backupDir", "BackupDir"] {
+        for key in [
+            "backup_dir",
+            "backup-dir",
+            "backupDir",
+            "BackupDir",
+            "suffix",
+            "Suffix",
+            "suffix_keep_extension",
+            "SuffixKeepExtension",
+        ] {
             for nested in [false, true] {
                 let entry = json!({key: "NAS:existing"});
                 let mut config = if nested {
@@ -277,8 +346,37 @@ mod tests {
         apply(&mut empty, "NAS:history", "run", 0, 1).unwrap();
         assert_eq!(
             empty,
-            json!({"BackupDir": "NAS:history/run", "_config": {"Checksum": true}})
+            json!({"BackupDir": "NAS:history", "Suffix": "_run", "SuffixKeepExtension": true, "_config": {"Checksum": true}})
         );
+    }
+
+    #[test]
+    fn timestamp_reservations_survive_repeated_calls_and_previews_do_not_write() {
+        let temp = tempfile::tempdir().unwrap();
+        let directory = temp.path().join("runs");
+        let now = chrono::Local::now();
+        let preview = reserve_at(&directory, now, true).unwrap();
+        assert!(!directory.exists());
+        assert_eq!(preview, reserve_at(&directory, now, false).unwrap());
+        let next = reserve_at(&directory, now, false).unwrap();
+        assert_ne!(preview, next);
+        assert!(chrono::NaiveDateTime::parse_from_str(&next, "%Y-%m-%d_%H-%M-%S%.3f").is_ok());
+        assert_eq!(std::fs::read_dir(&directory).unwrap().count(), 2);
+    }
+
+    #[test]
+    fn concurrent_reservations_are_unique() {
+        let temp = tempfile::tempdir().unwrap();
+        let now = chrono::Local::now();
+        let handles: Vec<_> = (0..12)
+            .map(|_| {
+                let directory = temp.path().join("runs");
+                std::thread::spawn(move || reserve_at(&directory, now, false).unwrap())
+            })
+            .collect();
+        let names: std::collections::HashSet<_> =
+            handles.into_iter().map(|h| h.join().unwrap()).collect();
+        assert_eq!(names.len(), 12);
     }
 
     #[test]

@@ -2,7 +2,7 @@
   <button type="button" aria-hidden="true" tabindex="-1" [attr.aria-label]="setupTypeValue()">
     <mat-icon [svgIcon]="iconService.getIconName(setupTypeValue())"></mat-icon>
   </button>
-  <p>{{ 'modals.quickAdd.title' | translate }}</p>
+  <p>{{ (connectionOnly ? 'simple.connections.add' : 'modals.quickAdd.title') | translate }}</p>
   <button
     type="button"
     matIconButton
@@ -29,8 +29,12 @@
           class="step-body"
           [form]="setupFormGroup"
           [remoteTypes]="remoteTypes()"
+          [remoteFields]="connectionFields()"
+          [isLoading]="fieldsPending()"
+          (remoteTypeChanged)="loadConnectionFields()"
           [existingRemotes]="existingRemotes()"
-          [visibility]="{ advanced: false }"
+          [visibility]="{ advanced: false, commands: !connectionOnly }"
+          [simpleSetup]="connectionOnly"
           [initialCommandOptions]="commandOptions()"
           (commandOptionsChanged)="commandOptions.set($event)"
         />
@@ -137,11 +141,11 @@
         matButton="filled"
         data-tone="primary"
         (click)="nextStep()"
-        [disabled]="!isSetupStepValid()"
+        [disabled]="!isSetupStepValid() || isAuthInProgress()"
         [attr.title]="'common.next' | translate"
         [attr.aria-label]="'common.next' | translate"
       >
-        {{ 'common.next' | translate }}
+        {{ (connectionOnly ? 'simple.connections.save' : 'common.next') | translate }}
         <mat-icon iconPositionEnd svgIcon="right-arrow"></mat-icon>
       </button>
     }

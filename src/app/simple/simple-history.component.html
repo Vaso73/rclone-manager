@@ -1,0 +1,47 @@
+<section class="detail-section">
+  <div class="card-row-item">
+    <h2>{{ task().name }}</h2>
+    <button
+      matIconButton
+      type="button"
+      (click)="load()"
+      [disabled]="busy()"
+      [title]="'simple.history.refresh' | translate"
+    >
+      <mat-icon svgIcon="refresh"></mat-icon>
+    </button>
+  </div>
+  <p>{{ 'simple.history.help' | translate }}</p>
+  <p class="truncate" [title]="task().history">{{ task().history }}</p>
+  @if (path()) {
+    <button matButton (click)="up()" [disabled]="busy()">
+      <mat-icon svgIcon="folder"></mat-icon>{{ 'simple.history.up' | translate }}
+    </button>
+    <p>{{ path() }}</p>
+  }
+  @if (busy()) {
+    <p role="status">{{ 'simple.loading' | translate }}</p>
+  }
+  @if (error()) {
+    <p role="alert">{{ error() | translate }}</p>
+  }
+  @for (entry of entries(); track entry.Name) {
+    <div class="card-row-item">
+      <mat-icon [svgIcon]="entry.IsDir ? 'folder' : 'file'"></mat-icon>
+      <span class="truncate" [title]="entry.Name">{{ entry.Name }}</span>
+      @if (!entry.IsDir) {
+        <span>{{ entry.Size | number }} B · {{ entry.ModTime | date: 'short' }}</span>
+      }
+      <button matButton (click)="entry.IsDir ? open(entry) : restore(entry)" [disabled]="busy()">
+        {{ (entry.IsDir ? 'simple.history.open' : 'simple.history.restore') | translate }}
+      </button>
+    </div>
+  } @empty {
+    @if (!busy() && !error()) {
+      <div class="empty-state">
+        <mat-icon svgIcon="clock"></mat-icon>
+        <p>{{ 'simple.history.empty' | translate }}</p>
+      </div>
+    }
+  }
+</section>

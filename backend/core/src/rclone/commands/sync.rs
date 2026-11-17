@@ -539,11 +539,11 @@ async fn submit_transfer_batch_inner(
             crate::services::backup::history::validate_root(root, dest, &sources, windows)?;
         }
     }
-    let history_run = format!(
-        "{}_{}",
-        chrono::Local::now().format("%Y-%m-%d_%H-%M-%S%.3f"),
-        uuid::Uuid::new_v4().simple()
-    );
+    let history_run = if history_root.is_some() {
+        crate::services::backup::history::reserve_run(&app, dry_run)?
+    } else {
+        String::new()
+    };
     let source_count = target_pairs.len();
     let mut tasks = Vec::with_capacity(target_pairs.len());
     for (source, _) in &target_pairs {
@@ -748,11 +748,13 @@ pub(crate) async fn start_resolved_profile_batch(
     };
 
     // Detect if DryRun was set in the resolved options
-    let dry_run = lookup_dry_run(
-        &common.rclone_config,
-        common.backend_options.as_ref(),
-        transfer_type,
-    );
+    let dry_run = params.dry_run.unwrap_or_else(|| {
+        lookup_dry_run(
+            &common.rclone_config,
+            common.backend_options.as_ref(),
+            transfer_type,
+        )
+    });
 
     let metadata_source = if is_scoped {
         target_pairs.iter().map(|(s, _)| s.clone()).collect()
@@ -813,6 +815,7 @@ mod batch_tests {
     use tokio::net::{TcpListener, TcpStream};
 
     struct BatchBackend {
+        directory: tempfile::TempDir,
         app: AppHandle,
         backend: Backend,
         server: tokio::task::JoinHandle<Vec<(String, Value)>>,
@@ -870,7 +873,14 @@ mod batch_tests {
                 "127.0.0.1",
                 listener.local_addr().unwrap().port(),
             );
+            let directory = tempfile::tempdir().unwrap();
             let app = AppHandle::default();
+            app.manage(crate::services::paths::AppPaths {
+                config_dir: directory.path().join("config"),
+                cache_dir: directory.path().join("cache"),
+                logs_dir: directory.path().join("logs"),
+                resource_dir: directory.path().join("resources"),
+            });
             let manager = BackendManager::new();
             manager
                 .set_runtime_info(
@@ -928,6 +938,7 @@ mod batch_tests {
                 requests
             });
             Self {
+                directory,
                 app,
                 backend,
                 server,
@@ -968,6 +979,7 @@ mod batch_tests {
         }
 
         async fn requests(&mut self) -> Vec<(String, Value)> {
+            assert!(self.directory.path().exists());
             tokio::time::timeout(Duration::from_secs(5), &mut self.server)
                 .await
                 .unwrap()
@@ -1019,17 +1031,19 @@ mod batch_tests {
                 assert_eq!(input["srcRemote"], "LiberKey");
                 assert_eq!(input["_path"], operations::COPYFILE);
             }
+            assert_eq!(input["_config"]["BackupDir"], "target:history");
             assert!(
-                input["_config"]["BackupDir"]
+                input["_config"]["Suffix"]
                     .as_str()
                     .unwrap()
-                    .starts_with("target:history/")
+                    .starts_with('_')
             );
+            assert_eq!(input["_config"]["SuffixKeepExtension"], true);
         }
     }
 
     #[tokio::test]
-    async fn history_is_encoded_as_one_frozen_archive_per_source_without_changing_other_flags() {
+    async fn history_keeps_the_tree_and_dates_files_without_changing_other_flags() {
         let mut backend = BatchBackend::new(
             vec![("first/旅行.txt", Ok(false)), ("second/Arşiv", Ok(true))],
             true,
@@ -1049,14 +1063,16 @@ mod batch_tests {
         let inputs = requests[2].1["inputs"].as_array().unwrap();
         let first = inputs[0]["_config"]["BackupDir"].as_str().unwrap();
         let second = inputs[1]["_config"]["BackupDir"].as_str().unwrap();
-        assert!(first.starts_with("target:history/"));
-        assert!(first.ends_with("/source-1"));
+        assert_eq!(first, "target:history/source-1");
         assert_eq!(
             second.strip_suffix("/source-2"),
             first.strip_suffix("/source-1")
         );
+        let suffix = &inputs[0]["_config"]["Suffix"];
         for input in inputs {
             assert_eq!(input["checksum"], true);
+            assert_eq!(&input["_config"]["Suffix"], suffix);
+            assert_eq!(input["_config"]["SuffixKeepExtension"], true);
         }
         assert_eq!(common.rclone_config["checksum"], true);
         assert!(common.rclone_config.get("backup_dir").is_none());

@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { of } from 'rxjs';
-import { MatDialogRef } from '@angular/material/dialog';
+import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
@@ -27,6 +27,7 @@ import { CopyToClipboardDirective } from '../../../../shared/directives/copy-to-
 import { EscapeCloseDirective } from '../../../../shared/directives/escape-close.directive';
 import {
   RemoteType,
+  RcConfigOption,
   RemoteConfigSections,
   REMOTE_CONFIG_KEYS,
   CommandOption,
@@ -39,7 +40,10 @@ import { InteractiveConfigStepComponent } from 'src/app/shared/remote-config/int
 import { RemoteConfigStepComponent } from 'src/app/shared/remote-config/remote-config-step/remote-config-step.component';
 import { INITIAL_COMMAND_OPTIONS } from 'src/app/services/remote/utils/command-options.util';
 import { mapFormToConfigProfile } from '../../../../services/remote/utils/profile-mapper.utils';
-import { createConfigFormGroup } from 'src/app/services/remote/utils/config-form.utils';
+import {
+  createConfigFormGroup,
+  reconcileDynamicControls,
+} from 'src/app/services/remote/utils/config-form.utils';
 
 const QUICK_SYNC_OPS = ['sync', 'copy', 'bisync', 'move'] as const;
 
@@ -82,6 +86,9 @@ import { ConfigFormSkeletonComponent } from 'src/app/shared/remote-config/config
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class QuickAddRemoteComponent {
+  readonly connectionOnly = !!inject<{ connectionOnly?: boolean } | null>(MAT_DIALOG_DATA, {
+    optional: true,
+  })?.connectionOnly;
   private readonly fb = inject(FormBuilder);
   private readonly dialogRef = inject(MatDialogRef<QuickAddRemoteComponent>);
   private readonly destroyRef = inject(DestroyRef);
@@ -135,6 +142,9 @@ export class QuickAddRemoteComponent {
   readonly interactiveFlowState = this.orchestrator.interactiveFlowState;
   readonly commandOptions = signal<CommandOption[]>(INITIAL_COMMAND_OPTIONS);
   readonly remoteTypes = signal<RemoteType[]>([]);
+  readonly connectionFields = signal<RcConfigOption[]>([]);
+  readonly fieldsPending = signal(false);
+  private fieldGeneration = 0;
   readonly existingRemotes = signal<string[]>([]);
 
   // ── Form ─────────────────────────────────────────────────────────────────
@@ -172,7 +182,11 @@ export class QuickAddRemoteComponent {
 
   // ── Computed ─────────────────────────────────────────────────────────────
   readonly isSetupStepValid = computed(
-    () => !this.isInitializing() && !this.loadFailed() && this.setupFormStatus() === 'VALID'
+    () =>
+      !this.isInitializing() &&
+      !this.loadFailed() &&
+      !this.fieldsPending() &&
+      this.setupFormStatus() === 'VALID'
   );
 
   readonly submitButtonText = computed(() =>
@@ -196,7 +210,9 @@ export class QuickAddRemoteComponent {
     this.loadFailed.set(false);
     try {
       const [oauthSupportedRemotes, existingRemotes] = await Promise.all([
-        this.remoteManagementService.getOAuthSupportedRemotes(),
+        this.connectionOnly
+          ? this.remoteManagementService.getRemoteTypes()
+          : this.remoteManagementService.getOAuthSupportedRemotes(),
         this.remoteManagementService.getRemotes(),
       ]);
 
@@ -217,12 +233,45 @@ export class QuickAddRemoteComponent {
         ]);
         remoteNameControl.updateValueAndValidity();
       }
+      if (this.connectionOnly && this.setupFormGroup.get('type')?.value)
+        await this.loadConnectionFields();
     } catch (error) {
       console.error('Error initializing quick add remote:', error);
       this.loadFailed.set(true);
       this.notificationService.showError(error);
     } finally {
       this.isInitializing.set(false);
+    }
+  }
+
+  async loadConnectionFields(): Promise<void> {
+    if (!this.connectionOnly) return;
+    const type = String(this.setupFormGroup.get('type')?.value ?? '');
+    const generation = ++this.fieldGeneration;
+    this.fieldsPending.set(true);
+    this.connectionFields.set([]);
+    try {
+      const fields = type ? await this.remoteManagementService.getRemoteConfigFields(type) : [];
+      if (
+        generation !== this.fieldGeneration ||
+        this.destroyRef.destroyed ||
+        this.setupFormGroup.get('type')?.value !== type
+      )
+        return;
+      reconcileDynamicControls(this.setupFormGroup, fields, {
+        preserveKeys: new Set(['name', 'type']),
+        reset: true,
+      });
+      if (type === 'drive' && this.setupFormGroup.get('scope'))
+        this.setupFormGroup.get('scope')?.setValue('drive');
+      this.connectionFields.set(fields);
+    } catch (error) {
+      if (generation === this.fieldGeneration && !this.destroyRef.destroyed) {
+        this.loadFailed.set(true);
+        this.notificationService.showError(error);
+      }
+    } finally {
+      if (generation === this.fieldGeneration) this.fieldsPending.set(false);
     }
   }
 
@@ -251,7 +300,8 @@ export class QuickAddRemoteComponent {
     if (this.currentStep() !== 'setup') return;
     this.setupFormGroup.markAllAsTouched();
     if (this.isSetupStepValid()) {
-      this.currentStep.set('operations');
+      if (this.connectionOnly) void this.onSubmit();
+      else this.currentStep.set('operations');
     }
   }
 
@@ -267,7 +317,8 @@ export class QuickAddRemoteComponent {
     if (
       this.isInitializing() ||
       this.loadFailed() ||
-      this.quickAddForm.invalid ||
+      this.fieldsPending() ||
+      (this.connectionOnly ? this.setupFormGroup.invalid : this.quickAddForm.invalid) ||
       this.isAuthInProgress()
     )
       return;
@@ -278,11 +329,21 @@ export class QuickAddRemoteComponent {
     try {
       const preset = this.presetsService.resolvePresets(setup.type);
       const completed = await this.orchestrator.createRemote(
-        { name: setup.name, type: setup.type, ...(preset.remote ?? {}) },
-        this.buildFinalConfig(setup.name, operations, preset),
+        { ...(preset.remote ?? {}), ...setup, name: setup.name, type: setup.type },
+        this.connectionOnly
+          ? ({
+              showOnTray: true,
+              ...(preset.vfs
+                ? { [REMOTE_CONFIG_KEYS.vfs]: { [DEFAULT_PROFILE_NAME]: preset.vfs } }
+                : {}),
+              ...(preset.backend
+                ? { [REMOTE_CONFIG_KEYS.backend]: { [DEFAULT_PROFILE_NAME]: preset.backend } }
+                : {}),
+            } as RemoteConfigSections)
+          : this.buildFinalConfig(setup.name, operations, preset),
         this.commandOptions()
       );
-      if (completed) this.dialogRef.close(true);
+      if (completed) this.dialogRef.close(this.connectionOnly ? this.setupNameValue() : true);
       else if (this.interactiveFlowState().isActive) this.currentStep.set('interactive');
     } catch (error) {
       if (this.interactiveFlowState().isActive) this.currentStep.set('interactive');
@@ -349,7 +410,7 @@ export class QuickAddRemoteComponent {
       answer,
       this.commandOptions()
     );
-    if (completed) this.dialogRef.close(true);
+    if (completed) this.dialogRef.close(this.connectionOnly ? this.setupNameValue() : true);
   }
 
   handleInteractiveAnswerUpdate(newAnswer: string | number | boolean | null): void {
@@ -358,7 +419,7 @@ export class QuickAddRemoteComponent {
 
   async cancelAuth(): Promise<void> {
     await this.orchestrator.cancelAuth();
-    this.currentStep.set('operations');
+    this.currentStep.set(this.connectionOnly ? 'setup' : 'operations');
   }
 
   close(): void {

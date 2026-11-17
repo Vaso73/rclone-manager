@@ -1577,7 +1577,7 @@
       "backupHistoryTitle": "Version history",
       "backupHistoryDir": "History folder (optional)",
       "backupHistoryPlaceholder": "remote:history/profile",
-      "backupHistoryHelp": "Replaced and deleted files are archived here with their original folder tree, in a unique dated folder for each run. History is never deleted automatically. Use a separate folder on the same destination; leave empty to keep existing behavior.",
+      "backupHistoryHelp": "Keep the original folder tree. Historical files have a date and time before the extension. History is never deleted automatically. Choose a separate folder on the same destination. Leave empty to preserve existing behavior.",
       "vssTitle": "Read from a Windows snapshot (VSS)",
       "vssHelp": "Read local sources from a fixed point in time, including locked files. No fallback to live files if snapshot creation fails. Unsaved data in applications is not included.",
       "vssHelperReady": "VSS helper enabled",
@@ -3347,7 +3347,7 @@
       "historyPathInvalid": "The history folder must be an unambiguous local or remote path without parent-directory traversal.",
       "historySameFilesystem": "Version history must use the same destination filesystem and path type as the mirror.",
       "historyOverlap": "The history folder must not overlap the source or the current mirror.",
-      "historyConflict": "An advanced backup-dir option is already configured. Use either that option or the version-history folder.",
+      "historyConflict": "An advanced backup-dir or suffix option is configured. Use either those options or the version-history folder.",
       "historyOperationUnsupported": "Version history is available for sync, copy and move profiles.",
       "dailyStateInvalid": "The saved daily-run state could not be read or written safely.",
       "vssUnsupported": "VSS requires the local Windows desktop backend.",
@@ -3358,7 +3358,8 @@
       "vssSetupCancelled": "Windows administrator confirmation was cancelled. VSS was not enabled.",
       "vssHelperRequired": "Enable the VSS helper in the profile before running a snapshot backup.",
       "vssOperationUnsupported": "VSS is available for sync and copy profiles; it cannot be used to move or delete the live source.",
-      "vssSetupFailed": "VSS helper setup did not finish (code {{code}}). Keep the existing task and report this code for diagnosis."
+      "vssSetupFailed": "VSS helper setup did not finish (code {{code}}). Keep the existing task and report this code for diagnosis.",
+      "historyStateInvalid": "Could not safely reserve a history timestamp. The transfer was not started."
     },
     "backend": {
       "nameEmpty": "Nome do backend não pode estar vazio",
@@ -4686,6 +4687,150 @@
     "errors": {
       "passwordsMismatch": "As senhas não coincidem",
       "unlockFailed": "Falha ao desbloquear o cofre"
+    }
+  },
+  "simple": {
+    "mode": {
+      "label": "Interface mode",
+      "help": "Simple guides everyday setup. Advanced keeps every option.",
+      "simple": "Simple mode",
+      "advanced": "Advanced mode"
+    },
+    "navigation": "Setup and tasks",
+    "loading": "Loading…",
+    "optionalMount": "A mounted disk is optional. Tasks can use SFTP and cloud connections directly.",
+    "nav": {
+      "connections": "Connections",
+      "drives": "Mounted disks",
+      "tasks": "Tasks",
+      "history": "History"
+    },
+    "intro": {
+      "connections": "First, add an SFTP server or cloud storage.",
+      "drives": "Optionally show a connection as a disk on this computer.",
+      "tasks": "Choose what to do, which folders to use and when to run.",
+      "history": "Find and restore older file versions."
+    },
+    "connections": {
+      "add": "Add SFTP or cloud",
+      "save": "Save connection",
+      "next": "Continue",
+      "browse": "Browse files",
+      "edit": "Edit connection",
+      "empty": "No connections yet. Add your first storage.",
+      "first": "First add or choose a connection."
+    },
+    "drives": {
+      "add": "Connect a disk",
+      "skip": "Continue without a disk",
+      "connect": "Connect",
+      "empty": "No disks configured for this connection. You can go straight to Tasks.",
+      "mountPoint": "Drive letter or mount folder",
+      "pathHelp": "On Windows, enter an unused drive such as X:. On Linux or macOS, use a mount folder. Mounting needs WinFsp (Windows) or FUSE (Linux/macOS).",
+      "network": "Show as a network disk (Windows)",
+      "readOnly": "Read only"
+    },
+    "tasks": {
+      "add": "Create a task",
+      "edit": "Edit",
+      "name": "Task name",
+      "action": "What should happen?",
+      "source": "From",
+      "destination": "To",
+      "browse": "Choose a folder",
+      "schedule": "When to run",
+      "time": "Time",
+      "saveOnly": "Save task",
+      "run": "Run",
+      "stop": "Stop / disconnect",
+      "preview": "Compare without changes",
+      "result": "View result",
+      "errors": "errors",
+      "empty": "No tasks yet for this connection.",
+      "protocol": "Sharing protocol",
+      "address": "Listen address",
+      "serveHelp": "The default address shares only on this computer. Access controls and advanced sharing settings are available in Advanced mode.",
+      "confirm": "Task: {{name}}\nFrom: {{source}}\nTo: {{destination}}\n\n{{action}}\n\nRun now?",
+      "vss": "Read open files from a Windows snapshot",
+      "vssHelp": "VSS reads a consistent point in time. Unsaved edits inside apps are not included.",
+      "enableVss": "Enable snapshots (Windows confirmation)",
+      "preserved": "Filters and other advanced settings are preserved. Saving does not run the task.",
+      "complex": "This task has multiple sources. Edit it in Advanced mode to preserve all paths."
+    },
+    "operations": {
+      "sync": "Mirror",
+      "copy": "Backup / copy",
+      "bisync": "Two-way sync",
+      "move": "Move",
+      "check": "Verify files",
+      "mount": "Mounted disk",
+      "serve": "Share files"
+    },
+    "operationHelp": {
+      "sync": "Make the destination match the source. Copy new and changed files; remove destination files missing from the source. With a history folder, replaced and removed files are archived.",
+      "copy": "Copy new and changed files. Keep extra files already at the destination.",
+      "bisync": "Synchronize changes in both directions. Deletions can affect both folders. The first run may require initialization in Advanced mode.",
+      "move": "Move source files to the destination, removing them from the source after a successful transfer.",
+      "check": "Read and compare both folders to verify their contents.",
+      "mount": "Show remote storage as a disk. File changes on that disk affect remote storage.",
+      "serve": "Make a folder accessible through a local file server."
+    },
+    "schedule": {
+      "manual": "Manually",
+      "startup": "When the app starts",
+      "daily": "Every day",
+      "custom": "Keep existing schedule",
+      "oncePerDay": "At most once per day",
+      "preserved": "The existing schedule, delays and file watcher are preserved."
+    },
+    "history": {
+      "folder": "Folder for older and deleted versions (optional)",
+      "help": "Keep the original folder tree. Historical files have a date and time before the extension. History is never deleted automatically. Choose a separate folder on the same destination.",
+      "enabled": "Older and deleted versions are kept in history.",
+      "open": "Open",
+      "up": "Parent folder",
+      "back": "All histories",
+      "refresh": "Refresh",
+      "restore": "Restore file",
+      "restoreConfirm": "Copy {{name}} to {{target}}? A file with the same name there may be replaced. The history copy stays unchanged.",
+      "restoreStarted": "Restore started. View its result under History in recent runs.",
+      "unavailable": "History could not be opened. If no versions have been archived yet, the folder may not exist. Check the connection and folder path.",
+      "empty": "No archived versions in this folder.",
+      "noTasks": "No tasks with a history folder yet.",
+      "runs": "Recent runs and restores",
+      "noRuns": "No runs recorded yet."
+    },
+    "status": {
+      "Running": "Running",
+      "Completed": "Completed",
+      "Failed": "Failed",
+      "Stopped": "Stopped",
+      "Connected": "Connected"
+    },
+    "errors": {
+      "paths": "Choose a source and destination.",
+      "time": "Choose a valid time.",
+      "name": "Enter a valid task name. Existing task names cannot be changed here.",
+      "duplicate": "A task with this name already exists for this action.",
+      "scope": "The active server or connection changed. Open the task again.",
+      "save": "The task could not be saved. Check the connection and try again.",
+      "vssSource": "Windows snapshots require a local source folder. Choose a local source or turn snapshots off."
+    },
+    "sftp": {
+      "host": "Server address",
+      "port": "Port",
+      "user": "Username",
+      "pass": "Password (unless using an SSH key)",
+      "key_file": "SSH key file (optional)",
+      "key_file_pass": "SSH key passphrase",
+      "required": "Complete the required field.",
+      "help": "Enter the server address, port and username. Use a password or the path to your SSH key. The usual SFTP port is 22."
+    },
+    "cloud": {
+      "access": "File access",
+      "readWrite": "Read and write",
+      "readOnly": "Read only",
+      "existing": "Existing advanced permissions"
     }
   }
 }

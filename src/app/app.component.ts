@@ -52,11 +52,14 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { TranslatePipe } from '@ngx-translate/core';
 import { ShortcutHandlerDirective } from './shared/directives/shortcut-handler.directive';
+import { InterfaceModeService } from './simple/interface-mode.service';
+import { SimpleWorkspaceComponent } from './simple/simple-workspace.component';
 
 @Component({
   selector: 'app-root',
   imports: [
     MainUiContainerComponent,
+    SimpleWorkspaceComponent,
     OnboardingComponent,
     NautilusComponent,
     FlowContainerComponent,
@@ -72,6 +75,7 @@ import { ShortcutHandlerDirective } from './shared/directives/shortcut-handler.d
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AppComponent implements OnInit {
+  protected readonly interfaceMode = inject(InterfaceModeService);
   readonly initializing = signal(true);
   readonly initializationFailed = signal(false);
 
@@ -298,6 +302,7 @@ export class AppComponent implements OnInit {
 
   async finishOnboarding(): Promise<void> {
     try {
+      await this.interfaceMode.setMode('simple');
       await this.onboardingStateService.completeOnboarding();
       await this.applyDefaultView();
     } catch (error) {

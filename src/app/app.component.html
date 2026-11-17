@@ -26,6 +26,15 @@
       @defer (on immediate) {
         <app-onboarding (completed)="finishOnboarding()"></app-onboarding>
       }
+    } @else if (
+      interfaceMode.simple() &&
+      !nautilusService.isStandaloneWindow() &&
+      !flowOverlayService.isStandaloneWindow() &&
+      !mainUiOverlayService.isStandaloneWindow()
+    ) {
+      @defer (on immediate) {
+        <app-simple-workspace></app-simple-workspace>
+      }
     } @else if (selectedMainView() === 'nautilus') {
       @defer (on immediate) {
         <app-nautilus></app-nautilus>

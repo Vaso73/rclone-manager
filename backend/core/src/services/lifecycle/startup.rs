@@ -108,6 +108,7 @@ fn push_auto_start_tasks(
         }
         let params = ProfileParams {
             remote_name: remote_name.to_string(),
+            dry_run: None,
             profile_name: profile_name.clone(),
             backend_name: Some(backend_name.to_string()),
             source: Some(Origin::Startup),

@@ -36,6 +36,7 @@ import { VaultService } from '../security/vault.service';
 import { AppSettingsService } from '../settings/app-settings.service';
 
 export interface RemoteConfigModalOptions {
+  simpleSetup?: boolean;
   remoteName?: string;
   remoteType?: string;
   editTarget?: string;
@@ -533,6 +534,7 @@ export class ModalService extends TauriBaseService {
     options: RemoteConfigModalOptions = {}
   ): DialogRefLike<TResult> {
     const data = {
+      simpleSetup: options.simpleSetup,
       name: options.remoteName,
       remoteType: options.remoteType,
       editTarget: options.editTarget,
@@ -630,10 +632,10 @@ export class ModalService extends TauriBaseService {
     );
   }
 
-  openQuickAddRemote<TResult = unknown>(): DialogRefLike<TResult> {
+  openQuickAddRemote<TResult = unknown>(connectionOnly = false): DialogRefLike<TResult> {
     return this.openModal(
       'quick-add-remote',
-      { ...STANDARD_MODAL_SIZE, disableClose: true },
+      { ...STANDARD_MODAL_SIZE, disableClose: true, data: { connectionOnly } },
       {
         title: this.translate.instant('titlebar.menu.quickRemote'),
         width: 680,

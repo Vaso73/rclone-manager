@@ -47,6 +47,7 @@ export class TitlebarComponent implements OnInit {
   readonly connectionService = inject(ConnectionService);
   readonly isMobile = isMobile;
 
+  readonly simple = input(false);
   readonly overlayType = input<'main' | 'flow' | 'none'>('main');
   readonly customAddMenu = input<TemplateRef<unknown> | null>(null);
   readonly showHome = input<boolean | null>(null);

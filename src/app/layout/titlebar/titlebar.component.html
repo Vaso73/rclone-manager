@@ -1,31 +1,32 @@
 <div class="left-section">
   <!-- Main Buttons -->
-  <button
-    matIconButton
-    [cdkMenuTriggerFor]="customAddMenu() ?? addRemoteMenu"
-    [attr.aria-label]="'titlebar.addRemoteMenu' | translate"
-    [attr.title]="'titlebar.addRemoteMenu' | translate"
-    data-tauri-drag-region="false"
-  >
-    <mat-icon svgIcon="plus" aria-hidden="true"></mat-icon>
-  </button>
-
-  <div
-    class="contextual-action-wrapper"
-    [class.visible]="isHomeVisible()"
-    [inert]="!isHomeVisible()"
-  >
+  @if (!simple()) {
     <button
       matIconButton
-      (click)="onHomeClicked()"
-      [attr.aria-label]="'titlebar.home' | translate"
-      [attr.title]="'titlebar.home' | translate"
+      [cdkMenuTriggerFor]="customAddMenu() ?? addRemoteMenu"
+      [attr.aria-label]="'titlebar.addRemoteMenu' | translate"
+      [attr.title]="'titlebar.addRemoteMenu' | translate"
       data-tauri-drag-region="false"
     >
-      <mat-icon svgIcon="rclone" aria-hidden="true"></mat-icon>
+      <mat-icon svgIcon="plus" aria-hidden="true"></mat-icon>
     </button>
-  </div>
 
+    <div
+      class="contextual-action-wrapper"
+      [class.visible]="isHomeVisible()"
+      [inert]="!isHomeVisible()"
+    >
+      <button
+        matIconButton
+        (click)="onHomeClicked()"
+        [attr.aria-label]="'titlebar.home' | translate"
+        [attr.title]="'titlebar.home' | translate"
+        data-tauri-drag-region="false"
+      >
+        <mat-icon svgIcon="rclone" aria-hidden="true"></mat-icon>
+      </button>
+    </div>
+  }
   <!-- Connection Status Indicator -->
   @if (
     !isMobile() &&

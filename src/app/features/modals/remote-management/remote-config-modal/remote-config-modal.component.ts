@@ -104,6 +104,7 @@ export class RemoteConfigModalComponent {
 
   readonly PROFILE_ICONS = PROFILE_ICONS;
 
+  readonly simpleSetup = !!this.dialogData?.simpleSetup;
   readonly hasInitialized = signal(false);
   readonly isSidebarOpen = signal(true);
   readonly sidebarMode = signal<MatDrawerMode>('side');

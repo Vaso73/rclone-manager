@@ -35,6 +35,21 @@ describe('RemoteConfigStepComponent field state', () => {
     vi.useRealTimers();
   });
 
+  it('uses the interactive cloud flow even when command controls are hidden', () => {
+    vi.spyOn(TestBed.inject(RemoteManagementService), 'isInteractiveRemote').mockReturnValue(true);
+    const fixture = TestBed.createComponent(RemoteConfigStepComponent);
+    fixture.componentRef.setInput(
+      'form',
+      new FormGroup({ type: new FormControl('drive'), name: new FormControl('cloud') })
+    );
+    fixture.componentRef.setInput('simpleSetup', true);
+    fixture.componentRef.setInput('visibility', { commands: false });
+    fixture.detectChanges();
+    expect(fixture.componentInstance.commandOptions()).toContainEqual(
+      expect.objectContaining({ key: 'nonInteractive', value: true })
+    );
+  });
+
   it('excludes hidden provider requirements from the parent form', () => {
     const fixture = TestBed.createComponent(RemoteConfigStepComponent);
     const form = new FormGroup({

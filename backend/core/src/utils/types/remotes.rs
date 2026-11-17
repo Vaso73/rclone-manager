@@ -143,6 +143,9 @@ pub struct ProfileParams {
     pub backend_name: Option<String>,
     pub source: Option<crate::utils::types::origin::Origin>,
     pub no_cache: Option<bool>,
+    /// Per-run preview override; never persists a change to the saved profile.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dry_run: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scoped_targets: Option<Vec<(String, String)>>,
     #[serde(skip)]
@@ -542,6 +545,40 @@ impl RemoteSettings {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn per_run_preview_is_optional_and_accepts_an_explicit_real_run() {
+        for (value, expected) in [
+            (
+                serde_json::json!({"remoteName":"NAS","profileName":"Backup"}),
+                None,
+            ),
+            (
+                serde_json::json!({"remoteName":"NAS","profileName":"Backup","dryRun":true}),
+                Some(true),
+            ),
+            (
+                serde_json::json!({"remoteName":"NAS","profileName":"Backup","dryRun":false}),
+                Some(false),
+            ),
+        ] {
+            let params: super::ProfileParams = serde_json::from_value(value).unwrap();
+            assert_eq!(params.dry_run, expected);
+            let serialized = serde_json::to_value(params).unwrap();
+            assert_eq!(
+                serialized
+                    .get("dryRun")
+                    .and_then(serde_json::Value::as_bool),
+                expected
+            );
+        }
+        assert!(
+            serde_json::from_value::<super::ProfileParams>(
+                serde_json::json!({"remoteName":"NAS","profileName":"Backup","dryRun":"true"})
+            )
+            .is_err()
+        );
+    }
+
     use super::*;
 
     #[test]

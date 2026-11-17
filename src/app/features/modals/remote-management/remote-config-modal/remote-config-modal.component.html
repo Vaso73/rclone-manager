@@ -3,6 +3,7 @@
 <header data-tauri-drag-region>
   <button
     matIconButton
+    [hidden]="simpleSetup"
     (click)="toggleSidebar()"
     [attr.title]="'sidebar.toggleSidebar' | translate"
     [attr.aria-label]="'sidebar.toggleSidebar' | translate"
@@ -33,7 +34,7 @@
     @if (!flow.isActive) {
       <mat-sidenav
         #sidenav
-        [opened]="isSidebarOpen()"
+        [opened]="!simpleSetup && isSidebarOpen()"
         (openedChange)="isSidebarOpen.set($event)"
         [mode]="sidebarMode()"
         class="modal-sidebar"
@@ -151,6 +152,8 @@
                 >
                   <app-remote-config-step
                     class="step"
+                    [simpleSetup]="simpleSetup"
+                    [visibility]="simpleSetup ? { advanced: false, commands: false } : {}"
                     [form]="state.remoteForm"
                     [remoteFields]="state.dynamicRemoteFields()"
                     [isLoading]="state.isRemoteConfigLoading()"

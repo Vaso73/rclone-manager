@@ -232,6 +232,7 @@ export class JobManagementService extends TauriBaseService {
       source?: Origin;
       noCache?: boolean;
       backendName?: string;
+      dryRun?: boolean;
     }
   ): Promise<number> {
     const lowercaseType = transferType.toLowerCase();

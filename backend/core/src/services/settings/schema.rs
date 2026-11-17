@@ -52,6 +52,13 @@ pub struct GeneralSettings {
     pub default_view: String,
 
     #[setting(
+        label = "simple.mode.label",
+        description = "simple.mode.help",
+        options(("advanced", "simple.mode.advanced"), ("simple", "simple.mode.simple"))
+    )]
+    pub interface_mode: String,
+
+    #[setting(
         label = "settings.general.tray_enabled.label",
         description = "settings.general.tray_enabled.description"
     )]
@@ -161,6 +168,7 @@ impl Default for GeneralSettings {
             start_on_boot: false,
             language,
             default_view: "main_menu".to_string(),
+            interface_mode: "advanced".to_string(),
             restrict: true,
         }
     }

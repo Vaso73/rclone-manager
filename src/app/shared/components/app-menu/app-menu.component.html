@@ -57,6 +57,19 @@
         </div>
         <mat-divider></mat-divider>
 
+        <button
+          cdkMenuItem
+          class="menu-item"
+          [disabled]="interfaceMode.saving()"
+          (click)="interfaceMode.setMode(interfaceMode.simple() ? 'advanced' : 'simple')"
+        >
+          <mat-icon svgIcon="gear" aria-hidden="true"></mat-icon>
+          <span>{{
+            (interfaceMode.simple() ? 'simple.mode.advanced' : 'simple.mode.simple') | translate
+          }}</span>
+        </button>
+        <mat-divider></mat-divider>
+
         <!-- Import / Export -->
         <button
           cdkMenuItem
@@ -90,40 +103,42 @@
           <span class="shortcut" aria-hidden="true">Ctrl + ,</span>
         </button>
 
-        <button
-          type="button"
-          class="menu-item space-between advanced-menu-trigger"
-          role="menuitem"
-          tabindex="0"
-          (click)="menuCtrl.openSubmenu('submenu'); $event.stopPropagation()"
-          (keydown)="onAdvancedKeydown($event)"
-          [attr.aria-label]="'titlebar.menu.advanced' | translate"
-        >
-          <span>{{ 'titlebar.menu.advanced' | translate }}</span>
-          <mat-icon svgIcon="chevron-right" aria-hidden="true"></mat-icon>
-        </button>
+        @if (!interfaceMode.simple()) {
+          <button
+            type="button"
+            class="menu-item space-between advanced-menu-trigger"
+            role="menuitem"
+            tabindex="0"
+            (click)="menuCtrl.openSubmenu('submenu'); $event.stopPropagation()"
+            (keydown)="onAdvancedKeydown($event)"
+            [attr.aria-label]="'titlebar.menu.advanced' | translate"
+          >
+            <span>{{ 'titlebar.menu.advanced' | translate }}</span>
+            <mat-icon svgIcon="chevron-right" aria-hidden="true"></mat-icon>
+          </button>
 
-        <mat-divider></mat-divider>
+          <mat-divider></mat-divider>
 
-        <!-- Workspaces / Overlays -->
-        @if (activeWorkspace() !== 'main_menu') {
-          <button cdkMenuItem class="menu-item" (click)="openWorkspace('main_menu')">
-            <span>{{ 'settings.general.default_view.options.main_menu' | translate }}</span>
-          </button>
+          <!-- Workspaces / Overlays -->
+          @if (activeWorkspace() !== 'main_menu') {
+            <button cdkMenuItem class="menu-item" (click)="openWorkspace('main_menu')">
+              <span>{{ 'settings.general.default_view.options.main_menu' | translate }}</span>
+            </button>
+          }
+          @if (activeWorkspace() !== 'nautilus') {
+            <button cdkMenuItem class="menu-item" (click)="openWorkspace('nautilus')">
+              <span>{{ 'titlebar.menu.fileBrowser' | translate }}</span>
+              <span class="shortcut" aria-hidden="true">Ctrl + B</span>
+            </button>
+          }
+          @if (activeWorkspace() !== 'flow') {
+            <button cdkMenuItem class="menu-item" (click)="openWorkspace('flow')">
+              <span>{{ 'titlebar.menu.flowWorkspace' | translate }}</span>
+              <span class="shortcut" aria-hidden="true">Ctrl + Alt + F</span>
+            </button>
+          }
+          <mat-divider></mat-divider>
         }
-        @if (activeWorkspace() !== 'nautilus') {
-          <button cdkMenuItem class="menu-item" (click)="openWorkspace('nautilus')">
-            <span>{{ 'titlebar.menu.fileBrowser' | translate }}</span>
-            <span class="shortcut" aria-hidden="true">Ctrl + B</span>
-          </button>
-        }
-        @if (activeWorkspace() !== 'flow') {
-          <button cdkMenuItem class="menu-item" (click)="openWorkspace('flow')">
-            <span>{{ 'titlebar.menu.flowWorkspace' | translate }}</span>
-            <span class="shortcut" aria-hidden="true">Ctrl + Alt + F</span>
-          </button>
-        }
-        <mat-divider></mat-divider>
 
         <button
           cdkMenuItem

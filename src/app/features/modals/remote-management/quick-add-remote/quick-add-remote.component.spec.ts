@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
-import { MatDialogRef } from '@angular/material/dialog';
+import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { QuickAddRemoteComponent } from './quick-add-remote.component';
 import { RemoteCreationOrchestrator } from '../../../../services/remote/remote-creation-orchestrator.service';
@@ -21,6 +21,7 @@ describe('QuickAddRemoteComponent submission', () => {
   const createRemote = vi.fn();
   const submitAnswer = vi.fn();
   const flow = signal(createInitialInteractiveFlowState());
+  const dialogData = { connectionOnly: false };
 
   beforeEach(async () => {
     close.mockReset();
@@ -28,9 +29,11 @@ describe('QuickAddRemoteComponent submission', () => {
     createRemote.mockReset().mockResolvedValue(true);
     submitAnswer.mockReset().mockResolvedValue(false);
     flow.set(createInitialInteractiveFlowState());
+    dialogData.connectionOnly = false;
     TestBed.configureTestingModule({
       providers: [
         { provide: MatDialogRef, useValue: { close } },
+        { provide: MAT_DIALOG_DATA, useValue: dialogData },
         {
           provide: RemoteCreationOrchestrator,
           useValue: {
@@ -46,6 +49,12 @@ describe('QuickAddRemoteComponent submission', () => {
           provide: RemoteManagementService,
           useValue: {
             getOAuthSupportedRemotes: vi.fn().mockResolvedValue([]),
+            getRemoteTypes: vi.fn().mockResolvedValue([{ name: 'sftp', description: 'SSH/SFTP' }]),
+            getRemoteConfigFields: vi.fn().mockResolvedValue([
+              { Name: 'host', Required: true, Default: '' },
+              { Name: 'user', Required: true, Default: '' },
+              { Name: 'pass', Default: '' },
+            ]),
             getRemotes: vi.fn().mockResolvedValue([]),
           },
         },
@@ -68,6 +77,109 @@ describe('QuickAddRemoteComponent submission', () => {
     await Promise.resolve();
     await Promise.resolve();
     component.setupFormGroup.patchValue({ name: 'new-remote', type: 'drive' });
+  });
+
+  it('creates a connection without operation profiles and passes entered SFTP fields', async () => {
+    dialogData.connectionOnly = true;
+    const simple = TestBed.runInInjectionContext(() => new QuickAddRemoteComponent());
+    await Promise.resolve();
+    await Promise.resolve();
+    const { FormControl } = await import('@angular/forms');
+    simple.setupFormGroup.patchValue({ name: 'NAS', type: 'sftp' });
+    simple.setupFormGroup.addControl('host', new FormControl('nas.example'));
+    simple.setupFormGroup.addControl('user', new FormControl('backup'));
+    simple.setupFormGroup.addControl('port', new FormControl('50022'));
+    simple.setupFormGroup.addControl('pass', new FormControl('example-not-a-real-password'));
+    expect(simple.remoteTypes()).toContainEqual(expect.objectContaining({ value: 'sftp' }));
+    await simple.onSubmit();
+    expect(createRemote).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'NAS',
+        type: 'sftp',
+        host: 'nas.example',
+        user: 'backup',
+        port: '50022',
+      }),
+      { showOnTray: true },
+      simple.commandOptions()
+    );
+    expect(close).toHaveBeenCalledWith('NAS');
+  });
+
+  it('loads SFTP fields, requires the host and discards fields when the provider changes', async () => {
+    dialogData.connectionOnly = true;
+    const simple = TestBed.runInInjectionContext(() => new QuickAddRemoteComponent());
+    await Promise.resolve();
+    await Promise.resolve();
+    simple.setupFormGroup.patchValue({ name: 'NAS', type: 'sftp' });
+    await simple.loadConnectionFields();
+    expect(simple.setupFormGroup.get('host')?.hasError('required')).toBe(true);
+    await simple.onSubmit();
+    expect(createRemote).not.toHaveBeenCalled();
+    simple.setupFormGroup.patchValue({
+      host: 'nas.example',
+      user: 'backup',
+      pass: 'not-a-real-password',
+    });
+    expect(simple.setupFormGroup.valid).toBe(true);
+    vi.mocked(TestBed.inject(RemoteManagementService).getRemoteConfigFields).mockResolvedValue([]);
+    simple.setupFormGroup.patchValue({ type: 'drive' });
+    await simple.loadConnectionFields();
+    expect(simple.setupFormGroup.get('pass')).toBeNull();
+  });
+
+  it('offers a usable Drive permission default while preserving an explicit read-only choice', async () => {
+    dialogData.connectionOnly = true;
+    const simple = TestBed.runInInjectionContext(() => new QuickAddRemoteComponent());
+    await Promise.resolve();
+    await Promise.resolve();
+    vi.mocked(TestBed.inject(RemoteManagementService).getRemoteConfigFields).mockResolvedValue([
+      {
+        Name: 'scope',
+        FieldName: 'Scope',
+        Help: '',
+        DefaultStr: '',
+        Type: 'SpaceSepList',
+        Default: [],
+      },
+    ] as Awaited<ReturnType<RemoteManagementService['getRemoteConfigFields']>>);
+    simple.setupFormGroup.patchValue({ name: 'Cloud', type: 'drive' });
+    await simple.loadConnectionFields();
+    expect(simple.setupFormGroup.get('scope')?.value).toBe('drive');
+    simple.setupFormGroup.patchValue({ scope: 'drive.readonly' });
+    await simple.onSubmit();
+    expect(createRemote).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: 'drive.readonly' }),
+      expect.anything(),
+      expect.anything()
+    );
+  });
+
+  it('discards a late provider response after choosing a different type', async () => {
+    dialogData.connectionOnly = true;
+    const simple = TestBed.runInInjectionContext(() => new QuickAddRemoteComponent());
+    await Promise.resolve();
+    await Promise.resolve();
+    type Fields = Awaited<ReturnType<RemoteManagementService['getRemoteConfigFields']>>;
+    let resolve: (value: Fields) => void = () => {
+      throw new Error('Resolver not initialized');
+    };
+    const promise = new Promise<Fields>(finish => {
+      resolve = finish;
+    });
+    vi.mocked(TestBed.inject(RemoteManagementService).getRemoteConfigFields)
+      .mockReturnValueOnce(promise)
+      .mockResolvedValueOnce([]);
+    simple.setupFormGroup.patchValue({ name: 'NAS', type: 'sftp' });
+    const pending = simple.loadConnectionFields();
+    simple.setupFormGroup.patchValue({ type: 'drive' });
+    await simple.loadConnectionFields();
+    resolve([{ Name: 'host', Required: true }] as Awaited<
+      ReturnType<RemoteManagementService['getRemoteConfigFields']>
+    >);
+    await pending;
+    expect(simple.setupFormGroup.get('host')).toBeNull();
+    expect(simple.fieldsPending()).toBe(false);
   });
 
   it('delegates complete remote creation and closes only on explicit success', async () => {

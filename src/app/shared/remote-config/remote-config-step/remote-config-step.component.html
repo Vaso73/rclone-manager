@@ -150,7 +150,7 @@
       </mat-form-field>
     }
 
-    @if (providerReady()) {
+    @if (providerReady() && !simpleSetup()) {
       @let basicLen = basicFields().length;
       @let advLen = advancedFields().length;
       @let showAdvOpts = showAdvancedOptions();
@@ -181,74 +181,76 @@
             >{{ tier.label }}</span
           >
         }
-        <div class="mode-actions">
-          @if (providerOverview()) {
+        @if (!simpleSetup()) {
+          <div class="mode-actions">
+            @if (providerOverview()) {
+              <button
+                type="button"
+                class="action-button"
+                (click)="showProviderOverview.set(!showProviderOverview())"
+                [attr.title]="'wizards.remoteConfig.providerOverview.title' | translate"
+                [attr.aria-label]="'wizards.remoteConfig.providerOverview.title' | translate"
+                [attr.aria-expanded]="showProviderOverview()"
+                [attr.aria-pressed]="showProviderOverview()"
+                [attr.aria-controls]="showProviderOverview() ? providerOverviewId : null"
+              >
+                <mat-icon svgIcon="info" />
+              </button>
+            }
+            <div
+              class="contextual-action-wrapper"
+              [class.visible]="showAdvancedToggle() && !showJson"
+            >
+              @let advLabel =
+                (showAdvOpts
+                  ? 'wizards.remoteConfig.hideAdvanced'
+                  : 'wizards.remoteConfig.showAdvanced'
+                ) | translate;
+              <button
+                type="button"
+                class="action-button"
+                (click)="toggleAdvancedOptions()"
+                [attr.title]="advLabel"
+                [attr.aria-label]="advLabel"
+                [attr.aria-pressed]="showAdvOpts"
+              >
+                <mat-icon svgIcon="tune" />
+              </button>
+            </div>
+            @if (showCommandField()) {
+              @let showCmdOpts = showCommandOptions();
+              @let cmdLabel =
+                (showCmdOpts
+                  ? 'wizards.remoteConfig.hideCommandOptions'
+                  : 'wizards.remoteConfig.showCommandOptions'
+                ) | translate;
+              <button
+                type="button"
+                class="action-button"
+                (click)="toggleCommandOptions()"
+                [attr.title]="cmdLabel"
+                [attr.aria-label]="cmdLabel"
+                [attr.aria-pressed]="showCmdOpts"
+              >
+                <mat-icon svgIcon="gear" />
+              </button>
+            }
+
+            @let jsonLabel =
+              (showJson ? 'wizards.remoteConfig.switchToForm' : 'wizards.remoteConfig.switchToJson')
+                | translate;
             <button
               type="button"
               class="action-button"
-              (click)="showProviderOverview.set(!showProviderOverview())"
-              [attr.title]="'wizards.remoteConfig.providerOverview.title' | translate"
-              [attr.aria-label]="'wizards.remoteConfig.providerOverview.title' | translate"
-              [attr.aria-expanded]="showProviderOverview()"
-              [attr.aria-pressed]="showProviderOverview()"
-              [attr.aria-controls]="showProviderOverview() ? providerOverviewId : null"
+              (click)="toggleJsonMode()"
+              [attr.title]="jsonLabel"
+              [attr.aria-label]="jsonLabel"
+              [attr.aria-pressed]="showJson"
             >
-              <mat-icon svgIcon="info" />
-            </button>
-          }
-          <div
-            class="contextual-action-wrapper"
-            [class.visible]="showAdvancedToggle() && !showJson"
-          >
-            @let advLabel =
-              (showAdvOpts
-                ? 'wizards.remoteConfig.hideAdvanced'
-                : 'wizards.remoteConfig.showAdvanced'
-              ) | translate;
-            <button
-              type="button"
-              class="action-button"
-              (click)="toggleAdvancedOptions()"
-              [attr.title]="advLabel"
-              [attr.aria-label]="advLabel"
-              [attr.aria-pressed]="showAdvOpts"
-            >
-              <mat-icon svgIcon="tune" />
+              <mat-icon svgIcon="code" />
             </button>
           </div>
-          @if (showCommandField()) {
-            @let showCmdOpts = showCommandOptions();
-            @let cmdLabel =
-              (showCmdOpts
-                ? 'wizards.remoteConfig.hideCommandOptions'
-                : 'wizards.remoteConfig.showCommandOptions'
-              ) | translate;
-            <button
-              type="button"
-              class="action-button"
-              (click)="toggleCommandOptions()"
-              [attr.title]="cmdLabel"
-              [attr.aria-label]="cmdLabel"
-              [attr.aria-pressed]="showCmdOpts"
-            >
-              <mat-icon svgIcon="gear" />
-            </button>
-          }
-
-          @let jsonLabel =
-            (showJson ? 'wizards.remoteConfig.switchToForm' : 'wizards.remoteConfig.switchToJson')
-              | translate;
-          <button
-            type="button"
-            class="action-button"
-            (click)="toggleJsonMode()"
-            [attr.title]="jsonLabel"
-            [attr.aria-label]="jsonLabel"
-            [attr.aria-pressed]="showJson"
-          >
-            <mat-icon svgIcon="code" />
-          </button>
-        </div>
+        }
       </div>
       @if (showProviderOverview()) {
         @if (providerOverview(); as overview) {
@@ -313,6 +315,9 @@
   }
 
   @if (providerReady()) {
+    @if (simpleSetup() && remoteType === 'sftp') {
+      <p>{{ 'simple.sftp.help' | translate }}</p>
+    }
     <div class="provider-fields" [inert]="isLoading() || disabled()">
       @if (showCommandOptions()) {
         <app-config-command-options
@@ -321,7 +326,7 @@
         />
       }
 
-      @if (showJsonMode()) {
+      @if (!simpleSetup() && showJsonMode()) {
         <div class="anim-panel">
           <app-json-editor
             [formGroup]="form()"
@@ -341,18 +346,54 @@
         </div>
       } @else {
         @for (item of basicFields(); track item.Name; let i = $index) {
-          <app-setting-control
-            class="anim-setting-control"
-            [style.--field-index]="i"
-            [option]="item"
-            [showObscureButton]="showObscureButton()"
-            [formControlName]="item.Name"
-            [provider]="remoteType"
-            (valueChanged)="onFieldChanged(item.Name, $event)"
-          ></app-setting-control>
+          @if (simpleSetup() && remoteType === 'sftp') {
+            @if (item.Name !== 'key_file_pass' || form().get('key_file')?.value) {
+              <mat-form-field class="anim-field">
+                <mat-label>{{ 'simple.sftp.' + item.Name | translate }}</mat-label>
+                <input
+                  matInput
+                  [formControlName]="item.Name"
+                  [type]="item.IsPassword ? 'password' : item.Name === 'port' ? 'number' : 'text'"
+                  [attr.autocomplete]="item.IsPassword ? 'new-password' : null"
+                />
+                @if (form().get(item.Name)?.hasError('required')) {
+                  <mat-error>{{ 'simple.sftp.required' | translate }}</mat-error>
+                }
+              </mat-form-field>
+            }
+          } @else if (simpleSetup() && remoteType === 'drive' && item.Name === 'scope') {
+            <mat-form-field>
+              <mat-label>{{ 'simple.cloud.access' | translate }}</mat-label>
+              <mat-select formControlName="scope">
+                <mat-option value="drive">{{ 'simple.cloud.readWrite' | translate }}</mat-option>
+                <mat-option value="drive.readonly">{{
+                  'simple.cloud.readOnly' | translate
+                }}</mat-option>
+                @if (
+                  form().get('scope')?.value !== 'drive' &&
+                  form().get('scope')?.value !== 'drive.readonly'
+                ) {
+                  <mat-option [value]="form().get('scope')?.value">{{
+                    'simple.cloud.existing' | translate
+                  }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+          } @else {
+            <app-setting-control
+              class="anim-setting-control"
+              [style.--field-index]="i"
+              [option]="item"
+              [showFlag]="!simpleSetup()"
+              [showObscureButton]="showObscureButton()"
+              [formControlName]="item.Name"
+              [provider]="remoteType"
+              (valueChanged)="onFieldChanged(item.Name, $event)"
+            ></app-setting-control>
+          }
         }
 
-        @if (advancedOptionsVisible() && advancedFields().length > 0) {
+        @if (!simpleSetup() && advancedOptionsVisible() && advancedFields().length > 0) {
           <div class="advanced-section anim-panel" id="section-advanced">
             <h3 class="section-heading">
               {{ 'wizards.remoteConfig.advancedOptions' | translate }}

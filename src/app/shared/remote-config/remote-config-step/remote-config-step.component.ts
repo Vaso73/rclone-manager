@@ -14,6 +14,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { startWith } from 'rxjs';
 import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatSelectModule } from '@angular/material/select';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
@@ -56,6 +57,7 @@ import { PillDirective } from '../../directives/pill.directive';
     ReactiveFormsModule,
     MatFormFieldModule,
     MatInputModule,
+    MatSelectModule,
     MatAutocompleteModule,
     MatButtonModule,
     SettingControlComponent,
@@ -181,7 +183,32 @@ export class RemoteConfigStepComponent {
     }));
   });
 
-  readonly basicFields = computed(() => this.getFieldsByAdvanced(false));
+  readonly simpleSetup = input(false);
+  readonly basicFields = computed(() => {
+    const fields = this.getFieldsByAdvanced(false);
+    if (!this.simpleSetup()) return fields;
+    if (this.remoteTypeValue() !== 'sftp')
+      return fields.filter(
+        field =>
+          field.Required ||
+          ![
+            'token',
+            'client_id',
+            'client_secret',
+            'config_token',
+            'config_is_local',
+            'service_account_file',
+            'alternate_export',
+          ].includes(field.Name || field.FieldName)
+      );
+    return fields.filter(
+      field =>
+        field.Required ||
+        ['host', 'port', 'user', 'pass', 'key_file', 'key_file_pass'].includes(
+          field.Name || field.FieldName
+        )
+    );
+  });
   readonly advancedFields = computed(() => this.getFieldsByAdvanced(true));
   readonly advancedOptionsVisible = computed(
     () => this.showAdvancedOptions() || !!this.searchQuery().trim()
@@ -324,7 +351,7 @@ export class RemoteConfigStepComponent {
     });
 
     effect(() => {
-      if (!this.showCommandField()) return;
+      if (!this.showCommandField() && !this.simpleSetup()) return;
       const isInteractive = this.remoteManagementService.isInteractiveRemote(
         this.remoteTypeValue()
       );

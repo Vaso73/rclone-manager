@@ -1580,7 +1580,7 @@
       "backupHistoryTitle": "História verzií",
       "backupHistoryDir": "Priečinok histórie (voliteľný)",
       "backupHistoryPlaceholder": "pripojenie:historia/profil",
-      "backupHistoryHelp": "Prepísané a odstránené súbory sa sem odložia s pôvodným stromom priečinkov. Každý beh má vlastný dátumový priečinok. História sa automaticky nemaže. Vyber samostatný priečinok na rovnakom cieli; prázdna hodnota zachová pôvodné správanie.",
+      "backupHistoryHelp": "Zachová sa pôvodný strom priečinkov. Historické súbory majú dátum a čas pred príponou. História sa automaticky nemaže. Vyber samostatný priečinok na rovnakom cieli. Prázdna hodnota zachová pôvodné správanie.",
       "vssTitle": "Čítať zo snímky Windows (VSS)",
       "vssHelp": "Lokálne zdroje sa čítajú zo stavu v jednom okamihu vrátane zamknutých súborov. Pri chybe snímky sa živé súbory nepoužijú. Neuložené údaje v aplikáciách sa nezálohujú.",
       "vssHelperReady": "VSS pomocník je povolený",
@@ -3388,7 +3388,7 @@
       "historyPathInvalid": "Priečinok histórie musí mať jednoznačnú lokálnu alebo vzdialenú cestu bez odkazov na nadradený priečinok.",
       "historySameFilesystem": "História musí používať rovnaký cieľový súborový systém a typ cesty ako zrkadlo.",
       "historyOverlap": "Priečinok histórie sa nesmie prekrývať so zdrojom ani s aktuálnym zrkadlom.",
-      "historyConflict": "Rozšírená voľba backup-dir je už nastavená. Použi buď túto voľbu, alebo priečinok histórie verzií.",
+      "historyConflict": "Je nastavená pokročilá voľba backup-dir alebo suffix. Použi buď tieto voľby, alebo priečinok histórie verzií.",
       "historyOperationUnsupported": "História verzií je dostupná pre profily synchronizácie, kopírovania a presúvania.",
       "dailyStateInvalid": "Stav denného spúšťania sa nepodarilo bezpečne prečítať alebo uložiť.",
       "vssUnsupported": "VSS vyžaduje lokálny backend desktopovej aplikácie Windows.",
@@ -3399,7 +3399,8 @@
       "vssSetupCancelled": "Potvrdenie správcu vo Windows bolo zrušené. VSS sa nepovolilo.",
       "vssHelperRequired": "Pred zálohou zo snímky povoľ VSS pomocníka v nastavení profilu.",
       "vssOperationUnsupported": "VSS je dostupné pre synchronizáciu a kopírovanie; nemožno ním presúvať ani mazať živý zdroj.",
-      "vssSetupFailed": "Nastavenie VSS pomocníka sa nedokončilo (kód {{code}}). Pošli tento kód na kontrolu; existujúcu úlohu nemaž."
+      "vssSetupFailed": "Nastavenie VSS pomocníka sa nedokončilo (kód {{code}}). Pošli tento kód na kontrolu; existujúcu úlohu nemaž.",
+      "historyStateInvalid": "Nepodarilo sa bezpečne rezervovať dátum historickej verzie. Prenos sa nespustil."
     },
     "backend": {
       "nameEmpty": "Názov backendu nemôže byť prázdny",
@@ -4686,6 +4687,150 @@
     "errors": {
       "passwordsMismatch": "Heslá sa nezhodujú",
       "unlockFailed": "Odomknutie trezoru zlyhalo"
+    }
+  },
+  "simple": {
+    "mode": {
+      "label": "Režim rozhrania",
+      "help": "Jednoduchý režim prevedie bežným nastavením. Pokročilý sprístupní všetky možnosti.",
+      "simple": "Jednoduchý režim",
+      "advanced": "Pokročilý režim"
+    },
+    "navigation": "Nastavenie a úlohy",
+    "loading": "Načítavam…",
+    "optionalMount": "Pripojenie disku je voliteľné. Úlohy môžu používať SFTP a cloud priamo.",
+    "nav": {
+      "connections": "Pripojenia",
+      "drives": "Pripojené disky",
+      "tasks": "Úlohy",
+      "history": "História"
+    },
+    "intro": {
+      "connections": "Najprv pridaj SFTP server alebo cloudové úložisko.",
+      "drives": "Voliteľne zobraz úložisko ako disk v tomto počítači.",
+      "tasks": "Vyber, čo sa má vykonať, s ktorými priečinkami a kedy.",
+      "history": "Nájdi a obnov staršie verzie súborov."
+    },
+    "connections": {
+      "add": "Pridať SFTP alebo cloud",
+      "save": "Uložiť pripojenie",
+      "next": "Pokračovať",
+      "browse": "Prehliadať súbory",
+      "edit": "Upraviť pripojenie",
+      "empty": "Zatiaľ nemáš pripojenia. Pridaj prvé úložisko.",
+      "first": "Najprv pridaj alebo vyber pripojenie."
+    },
+    "drives": {
+      "add": "Pripojiť disk",
+      "skip": "Pokračovať bez disku",
+      "connect": "Pripojiť",
+      "empty": "Pre toto pripojenie nemáš nastavený disk. Môžeš pokračovať rovno na Úlohy.",
+      "mountPoint": "Písmeno disku alebo prípojný priečinok",
+      "pathHelp": "Vo Windows zadaj voľné písmeno, napríklad X:. V Linuxe alebo macOS použi prípojný priečinok. Pripojenie vyžaduje WinFsp (Windows) alebo FUSE (Linux/macOS).",
+      "network": "Zobraziť ako sieťový disk (Windows)",
+      "readOnly": "Iba na čítanie"
+    },
+    "tasks": {
+      "add": "Vytvoriť úlohu",
+      "edit": "Upraviť",
+      "name": "Názov úlohy",
+      "action": "Čo sa má vykonať?",
+      "source": "Odkiaľ",
+      "destination": "Kam",
+      "browse": "Vybrať priečinok",
+      "schedule": "Kedy spúšťať",
+      "time": "Čas",
+      "saveOnly": "Uložiť úlohu",
+      "run": "Spustiť",
+      "stop": "Zastaviť / odpojiť",
+      "preview": "Porovnať bez zmien",
+      "result": "Zobraziť výsledok",
+      "errors": "chýb",
+      "empty": "Pre toto pripojenie ešte nemáš úlohy.",
+      "protocol": "Spôsob zdieľania",
+      "address": "Adresa servera",
+      "serveHelp": "Predvolená adresa zdieľa iba v tomto počítači. Prístupové práva a ďalšie možnosti nájdeš v pokročilom režime.",
+      "confirm": "Úloha: {{name}}\nOdkiaľ: {{source}}\nKam: {{destination}}\n\n{{action}}\n\nSpustiť teraz?",
+      "vss": "Čítať otvorené súbory zo snímky Windows",
+      "vssHelp": "VSS číta stav v jednom okamihu. Neuložené zmeny v aplikáciách sa nezálohujú.",
+      "enableVss": "Povoliť snímky (potvrdenie Windows)",
+      "preserved": "Filtre a ďalšie pokročilé nastavenia zostanú zachované. Uložením sa úloha nespustí.",
+      "complex": "Táto úloha má viac zdrojov. Uprav ju v pokročilom režime, aby zostali zachované všetky cesty."
+    },
+    "operations": {
+      "sync": "Zrkadlenie",
+      "copy": "Záloha / kopírovanie",
+      "bisync": "Obojsmerná synchronizácia",
+      "move": "Presun",
+      "check": "Overenie súborov",
+      "mount": "Pripojený disk",
+      "serve": "Zdieľanie súborov"
+    },
+    "operationHelp": {
+      "sync": "Cieľ bude zodpovedať zdroju. Prenesú sa nové a zmenené súbory; súbory chýbajúce v zdroji sa z cieľa odstránia. Ak nastavíš históriu, prepísané a odstránené súbory sa do nej odložia.",
+      "copy": "Skopírujú sa nové a zmenené súbory. Ďalšie súbory v cieli zostanú.",
+      "bisync": "Zmeny sa prenášajú oboma smermi. Mazanie môže ovplyvniť oba priečinky. Prvý beh môže vyžadovať inicializáciu v pokročilom režime.",
+      "move": "Súbory sa presunú do cieľa a po úspešnom prenose sa zo zdroja odstránia.",
+      "check": "Oba priečinky sa prečítajú a overí sa ich obsah.",
+      "mount": "Vzdialené úložisko sa zobrazí ako disk. Zmeny na tomto disku menia súbory vo vzdialenom úložisku.",
+      "serve": "Priečinok sa sprístupní cez lokálny súborový server."
+    },
+    "schedule": {
+      "manual": "Ručne",
+      "startup": "Pri spustení aplikácie",
+      "daily": "Každý deň",
+      "custom": "Ponechať existujúci plán",
+      "oncePerDay": "Najviac raz denne",
+      "preserved": "Existujúci plán, oneskorenie a sledovanie súborov zostanú zachované."
+    },
+    "history": {
+      "folder": "Priečinok starších a odstránených verzií (voliteľný)",
+      "help": "Zachová sa pôvodný strom priečinkov. Historické súbory majú dátum a čas pred príponou. História sa automaticky nemaže. Vyber samostatný priečinok na rovnakom cieli.",
+      "enabled": "Staršie a odstránené verzie sa uchovávajú v histórii.",
+      "open": "Otvoriť",
+      "up": "Nadradený priečinok",
+      "back": "Všetky histórie",
+      "refresh": "Obnoviť zoznam",
+      "restore": "Obnoviť súbor",
+      "restoreConfirm": "Skopírovať {{name}} do {{target}}? Súbor s rovnakým názvom v tomto priečinku sa môže prepísať. Kópia v histórii zostane zachovaná.",
+      "restoreStarted": "Obnova sa spustila. Výsledok nájdeš v časti História medzi poslednými behmi.",
+      "unavailable": "Históriu sa nepodarilo otvoriť. Ak sa ešte neodložila žiadna verzia, priečinok nemusí existovať. Skontroluj pripojenie a cestu.",
+      "empty": "V tomto priečinku zatiaľ nie sú historické verzie.",
+      "noTasks": "Zatiaľ nemáš úlohy s nastaveným priečinkom histórie.",
+      "runs": "Posledné behy a obnovy",
+      "noRuns": "Zatiaľ tu nie sú záznamy behov."
+    },
+    "status": {
+      "Running": "Prebieha",
+      "Completed": "Dokončené",
+      "Failed": "Zlyhalo",
+      "Stopped": "Zastavené",
+      "Connected": "Pripojené"
+    },
+    "errors": {
+      "paths": "Vyber zdroj a cieľ.",
+      "time": "Vyber platný čas.",
+      "name": "Zadaj platný názov úlohy. Existujúce názvy sa tu nemenia.",
+      "duplicate": "Úloha s týmto názvom už pre túto operáciu existuje.",
+      "scope": "Aktívny server alebo pripojenie sa zmenilo. Otvor úlohu znova.",
+      "save": "Úlohu sa nepodarilo uložiť. Skontroluj pripojenie a skús znova.",
+      "vssSource": "Snímka Windows vyžaduje lokálny zdrojový priečinok. Vyber lokálny zdroj alebo vypni snímku."
+    },
+    "sftp": {
+      "host": "Adresa servera",
+      "port": "Port",
+      "user": "Používateľ",
+      "pass": "Heslo (ak nepoužívaš SSH kľúč)",
+      "key_file": "Súbor SSH kľúča (voliteľný)",
+      "key_file_pass": "Heslo SSH kľúča",
+      "required": "Vyplň povinný údaj.",
+      "help": "Zadaj adresu servera, port a používateľa. Použi heslo alebo cestu k svojmu SSH kľúču. Pre bežné SFTP je predvolený port 22."
+    },
+    "cloud": {
+      "access": "Prístup k súborom",
+      "readWrite": "Čítanie a zápis",
+      "readOnly": "Iba čítanie",
+      "existing": "Pôvodné pokročilé nastavenie"
     }
   }
 }

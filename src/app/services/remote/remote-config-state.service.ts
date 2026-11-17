@@ -82,6 +82,7 @@ export interface StepConfig {
   readonly type: EditTarget;
 }
 export interface DialogData {
+  simpleSetup?: boolean;
   editTarget?: EditTarget;
   name?: string;
   remoteType: string;

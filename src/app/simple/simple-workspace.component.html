@@ -1,0 +1,268 @@
+<app-workspace-shell>
+  <app-titlebar [simple]="true" [showHome]="false" data-tauri-drag-region></app-titlebar>
+  <app-banner></app-banner>
+  <div class="simple-shell">
+    <aside>
+      <div class="brand"><mat-icon svgIcon="rclone"></mat-icon><strong>RClone Manager</strong></div>
+      <span appPill tone="primary" size="sm">{{ 'simple.mode.simple' | translate }}</span>
+      <nav [attr.aria-label]="'simple.navigation' | translate">
+        @for (item of pages; track item.key; let i = $index) {
+          <button
+            matButton
+            [attr.aria-current]="page() === item.key ? 'page' : null"
+            (click)="navigate(item.key)"
+          >
+            <mat-icon [svgIcon]="item.icon"></mat-icon
+            ><span>{{ i + 1 }}. {{ 'simple.nav.' + item.key | translate }}</span>
+          </button>
+        }
+      </nav>
+      <p>{{ 'simple.optionalMount' | translate }}</p>
+      <button matButton (click)="mode.setMode('advanced')" [disabled]="mode.saving()">
+        <mat-icon svgIcon="gear"></mat-icon>{{ 'simple.mode.advanced' | translate }}
+      </button>
+    </aside>
+    <main>
+      <header>
+        <div>
+          <h1>{{ 'simple.nav.' + page() | translate }}</h1>
+          <p>{{ 'simple.intro.' + page() | translate }}</p>
+        </div>
+      </header>
+      @if (validEditor(); as editor) {
+        <mat-card
+          ><mat-card-content
+            ><app-simple-task-editor
+              [remote]="editor.remote"
+              [task]="editor.task"
+              [operation]="editor.mount ? 'mount' : 'sync'"
+              (saved)="this.editor.set(null)"
+              (cancelled)="this.editor.set(null)"
+            ></app-simple-task-editor></mat-card-content
+        ></mat-card>
+      } @else if (page() === 'connections') {
+        <button matButton="filled" data-tone="primary" (click)="addConnection()">
+          <mat-icon svgIcon="plus"></mat-icon>{{ 'simple.connections.add' | translate }}
+        </button>
+        @if (facade.loading()) {
+          <p role="status">{{ 'simple.loading' | translate }}</p>
+        }
+        <div class="connection-grid">
+          @for (remote of facade.remoteSummaries(); track remote.name) {
+            <mat-card [attr.data-selected]="selected() === remote.name">
+              <mat-card-header
+                ><mat-icon mat-card-avatar svgIcon="cloud"></mat-icon
+                ><mat-card-title>{{ remote.name }}</mat-card-title
+                ><mat-card-subtitle>{{ remote.type }}</mat-card-subtitle></mat-card-header
+              >
+              <mat-card-actions>
+                <button matButton (click)="selected.set(remote.name); navigate('drives')">
+                  {{ 'simple.connections.next' | translate }}
+                </button>
+                <button matButton (click)="selected.set(remote.name); browse()">
+                  {{ 'simple.connections.browse' | translate }}
+                </button>
+                <button matButton (click)="selected.set(remote.name); editConnection()">
+                  {{ 'simple.connections.edit' | translate }}
+                </button>
+              </mat-card-actions>
+            </mat-card>
+          } @empty {
+            @if (!facade.loading()) {
+              <div class="empty-state">
+                <mat-icon svgIcon="cloud"></mat-icon>
+                <p>{{ 'simple.connections.empty' | translate }}</p>
+              </div>
+            }
+          }
+        </div>
+      } @else if (page() === 'history') {
+        @if (validHistory(); as task) {
+          <button matButton (click)="history.set(null)">
+            {{ 'simple.history.back' | translate }}</button
+          ><mat-card
+            ><mat-card-content
+              ><app-simple-history [task]="task"></app-simple-history></mat-card-content
+          ></mat-card>
+        } @else {
+          @for (task of historyTasks(); track task.remote + task.operation + task.name) {
+            <mat-card
+              ><mat-card-header
+                ><mat-card-title>{{ task.name }}</mat-card-title
+                ><mat-card-subtitle>{{ task.remote }}</mat-card-subtitle></mat-card-header
+              ><mat-card-content
+                ><p class="truncate" [title]="task.history">{{ task.history }}</p></mat-card-content
+              ><mat-card-actions
+                ><button matButton (click)="history.set(task)">
+                  {{ 'simple.history.open' | translate }}
+                </button></mat-card-actions
+              ></mat-card
+            >
+          } @empty {
+            <div class="empty-state">
+              <mat-icon svgIcon="clock"></mat-icon>
+              <p>{{ 'simple.history.noTasks' | translate }}</p>
+              <button matButton (click)="navigate('tasks')">
+                {{ 'simple.nav.tasks' | translate }}
+              </button>
+            </div>
+          }
+        }
+        <section class="detail-section">
+          <h2>{{ 'simple.history.runs' | translate }}</h2>
+          @for (job of facade.jobs().slice(0, 20); track job.execute_id) {
+            <div class="card-row-item">
+              <span>{{ job.remote_name }}</span
+              ><span>{{ 'simple.status.' + job.status | translate }}</span
+              ><span>{{ job.start_time | date: 'short' }}</span
+              ><button matButton (click)="details(job)">
+                {{ 'simple.tasks.result' | translate }}
+              </button>
+            </div>
+          } @empty {
+            <div class="empty-state">
+              <span>{{ 'simple.history.noRuns' | translate }}</span>
+            </div>
+          }
+        </section>
+      } @else {
+        <div class="connection-picker" [attr.aria-label]="'simple.nav.connections' | translate">
+          @for (remote of facade.remoteSummaries(); track remote.name) {
+            <button
+              appPill
+              tone="primary"
+              [selected]="selected() === remote.name"
+              (click)="selected.set(remote.name)"
+            >
+              {{ remote.name }}
+            </button>
+          }
+        </div>
+        @if (!selected()) {
+          <div class="empty-state">
+            <p>{{ 'simple.connections.first' | translate }}</p>
+            <button matButton="filled" (click)="navigate('connections')">
+              {{ 'simple.nav.connections' | translate }}
+            </button>
+          </div>
+        } @else {
+          <div class="page-actions">
+            <button matButton="filled" data-tone="primary" (click)="edit()">
+              <mat-icon svgIcon="plus"></mat-icon
+              >{{ (page() === 'drives' ? 'simple.drives.add' : 'simple.tasks.add') | translate }}
+            </button>
+            @if (page() === 'drives') {
+              <button matButton (click)="navigate('tasks')">
+                {{ 'simple.drives.skip' | translate }}
+              </button>
+            }
+          </div>
+          @for (task of visibleTasks(); track task.remote + task.operation + task.name) {
+            <mat-card [attr.data-tone]="tones[task.operation]">
+              <mat-card-header
+                ><mat-card-title>{{ task.name }}</mat-card-title
+                ><mat-card-subtitle>{{
+                  'simple.operations.' + task.operation | translate
+                }}</mat-card-subtitle></mat-card-header
+              >
+              <mat-card-content>
+                <p>{{ 'simple.operationHelp.' + task.operation | translate }}</p>
+                <div class="task-path">
+                  <span>{{ 'simple.tasks.source' | translate }}</span
+                  ><strong class="truncate" [title]="task.source">{{ task.source }}</strong>
+                </div>
+                @if (task.destination) {
+                  <div class="task-path">
+                    <span>{{ 'simple.tasks.destination' | translate }}</span
+                    ><strong class="truncate" [title]="task.destination">{{
+                      task.destination
+                    }}</strong>
+                  </div>
+                }
+                @if (task.history) {
+                  <p>{{ 'simple.history.enabled' | translate }}</p>
+                }
+                @if ((task.operation === 'mount' || task.operation === 'serve') && active(task)) {
+                  <span appPill tone="primary" size="sm">{{
+                    'simple.status.Connected' | translate
+                  }}</span>
+                }
+                @if (latest(task); as job) {
+                  <div class="card-row-item">
+                    <span
+                      appPill
+                      [tone]="
+                        job.status === 'Failed'
+                          ? 'warn'
+                          : job.status === 'Running'
+                            ? 'accent'
+                            : 'primary'
+                      "
+                      size="sm"
+                      >{{ 'simple.status.' + job.status | translate }}</span
+                    >
+                    @if (job.dry_run) {
+                      <span appPill tone="dim" size="sm">{{
+                        'simple.tasks.preview' | translate
+                      }}</span>
+                    }
+                    <span
+                      >{{ job.stats.bytes | number }} B · {{ job.stats.errors | number }}
+                      {{ 'simple.tasks.errors' | translate }}</span
+                    ><span>{{ job.start_time | date: 'short' }}</span
+                    ><button matButton (click)="details(job)">
+                      {{ 'simple.tasks.result' | translate }}
+                    </button>
+                  </div>
+                }
+              </mat-card-content>
+              <mat-card-actions>
+                @if (
+                  task.operation !== 'mount' &&
+                  task.operation !== 'serve' &&
+                  task.operation !== 'check'
+                ) {
+                  <button
+                    matButton
+                    (click)="run(task, true)"
+                    [disabled]="pending() || active(task)"
+                  >
+                    <mat-icon svgIcon="eye"></mat-icon>{{ 'simple.tasks.preview' | translate }}
+                  </button>
+                }
+                <button
+                  matButton="filled"
+                  (click)="run(task, false)"
+                  [disabled]="pending() || active(task)"
+                >
+                  <mat-icon svgIcon="play"></mat-icon
+                  >{{
+                    (task.operation === 'mount' ? 'simple.drives.connect' : 'simple.tasks.run')
+                      | translate
+                  }}
+                </button>
+                @if (active(task)) {
+                  <button matButton (click)="stop(task)" [disabled]="pending()">
+                    {{ 'simple.tasks.stop' | translate }}
+                  </button>
+                }
+                <button matButton (click)="edit(task)" [disabled]="pending() || active(task)">
+                  {{ 'simple.tasks.edit' | translate }}
+                </button>
+              </mat-card-actions>
+            </mat-card>
+          } @empty {
+            <div class="empty-state">
+              <mat-icon [svgIcon]="page() === 'drives' ? 'hard-drive' : 'check-list'"></mat-icon>
+              <p>
+                {{
+                  (page() === 'drives' ? 'simple.drives.empty' : 'simple.tasks.empty') | translate
+                }}
+              </p>
+            </div>
+          }
+        }
+      }
+    </main>
+  </div>
+</app-workspace-shell>

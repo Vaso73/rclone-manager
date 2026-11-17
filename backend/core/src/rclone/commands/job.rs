@@ -1337,6 +1337,7 @@ mod tests {
                         crate::utils::types::remotes::OperationType::Sync,
                         crate::utils::types::remotes::ProfileParams {
                             remote_name: "gdrive".into(),
+                            dry_run: None,
                             profile_name: "daily".into(),
                             backend_name: Some("A".into()),
                             source: Some(Origin::Automation),

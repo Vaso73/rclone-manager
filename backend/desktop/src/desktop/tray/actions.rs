@@ -17,6 +17,7 @@ use crate::utils::{
 pub(crate) fn profile_params(remote_name: &str, profile_name: &str) -> ProfileParams {
     ProfileParams {
         remote_name: remote_name.to_string(),
+        dry_run: None,
         profile_name: profile_name.to_string(),
         backend_name: None,
         source: Some(Origin::Dashboard),

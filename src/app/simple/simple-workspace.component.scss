@@ -1,0 +1,121 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.simple-shell {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  background: var(--window-bg-color);
+  color: var(--window-fg-color);
+}
+aside {
+  flex: 0 0 15rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  background: var(--sidebar-bg-color);
+  overflow: auto;
+  box-sizing: border-box;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  button {
+    justify-content: flex-start;
+  }
+  [aria-current="page"] {
+    background: var(--selected-bg-color);
+  }
+}
+main {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  padding: var(--space-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+header h1 {
+  margin-block: 0 var(--space-xs);
+}
+p {
+  color: var(--dim-color);
+  overflow-wrap: anywhere;
+}
+.connection-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: var(--space-lg);
+}
+mat-card {
+  flex-shrink: 0;
+  background: var(--card-bg-color);
+  border: thin solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+mat-card-actions,
+.page-actions,
+.connection-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+mat-card-content {
+  padding-block: var(--space-md);
+}
+.task-path {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+  strong {
+    user-select: text;
+  }
+}
+.card-row-item {
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+@media (max-width: 48rem) {
+  .simple-shell {
+    flex-direction: column;
+  }
+  aside {
+    flex-basis: auto;
+    padding: var(--space-sm);
+    overflow: visible;
+    .brand,
+    p,
+    > span {
+      display: none;
+    }
+    nav {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      overflow: visible;
+      button {
+        white-space: normal;
+        min-width: 0;
+        font-size: var(--font-size-sm);
+        text-align: start;
+      }
+    }
+    > button {
+      align-self: flex-end;
+    }
+  }
+  main {
+    padding: var(--space-md);
+  }
+}
