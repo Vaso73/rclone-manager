@@ -124,9 +124,15 @@ export class SimpleWorkspaceComponent {
     )
   );
   readonly visibleTasks = computed(() =>
-    this.matchingTasks().filter(task => !simpleTaskTemplate(task))
+    this.matchingTasks().filter(task => !this.isUnusedTemplate(task))
   );
-  readonly templates = computed(() => this.matchingTasks().filter(simpleTaskTemplate));
+  readonly templates = computed(() =>
+    this.matchingTasks().filter(task => this.isUnusedTemplate(task))
+  );
+
+  isUnusedTemplate(task: SimpleTask): boolean {
+    return simpleTaskTemplate(task) && !this.active(task) && !this.latest(task);
+  }
 
   async remove(task: SimpleTask): Promise<void> {
     if (this.pending() || this.active(task)) return;

@@ -19,6 +19,7 @@ import { SimpleWorkspaceComponent } from './simple-workspace.component';
 import { SimpleTaskEditorComponent } from './simple-task-editor.component';
 import { SimpleHistoryComponent } from './simple-history.component';
 import { MountManagementService } from '../services/operations/mount-management.service';
+import { JobInfo } from '@app/types';
 import { SimpleTask } from './simple-profile.util';
 
 describe('simple workspace actions', () => {
@@ -318,6 +319,27 @@ describe('simple workspace actions', () => {
     await fixture.whenStable();
     return fixture.componentInstance;
   }
+  it('keeps active or previously used default profiles out of unused templates', () => {
+    const c = TestBed.runInInjectionContext(() => new SimpleWorkspaceComponent());
+    const candidate: SimpleTask = {
+      ...task,
+      name: 'Default',
+      operation: 'serve',
+      source: 'NAS:',
+      destination: '',
+      history: '',
+      config: { app: {}, rclone: { fs: 'NAS:' } },
+    };
+    const active = vi.spyOn(c, 'active').mockReturnValue(false);
+    const latest = vi.spyOn(c, 'latest').mockReturnValue(null);
+    expect(c.isUnusedTemplate(candidate)).toBe(true);
+    active.mockReturnValue(true);
+    expect(c.isUnusedTemplate(candidate)).toBe(false);
+    active.mockReturnValue(false);
+    latest.mockReturnValue({ status: 'Completed' } as JobInfo);
+    expect(c.isUnusedTemplate(candidate)).toBe(false);
+  });
+
   it('never starts an incomplete task, even if invoked outside the disabled button', async () => {
     const c = TestBed.runInInjectionContext(() => new SimpleWorkspaceComponent());
     await c.run({ ...task, destination: ' ' }, false);
