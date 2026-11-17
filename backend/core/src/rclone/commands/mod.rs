@@ -8,6 +8,7 @@ pub mod job;
 pub mod job_chain;
 pub mod job_parser;
 pub mod mount;
+pub mod mount_settings;
 pub mod rc_console;
 pub mod remote;
 pub mod serve;

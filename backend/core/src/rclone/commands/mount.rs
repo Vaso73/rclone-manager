@@ -109,7 +109,19 @@ impl MountParams {
 }
 
 /// Mount a remote filesystem (not exposed as Tauri command - use `mount_remote_profile`)
-pub async fn mount_remote(app: AppHandle, params: MountParams) -> Result<(), String> {
+pub async fn mount_remote(app: AppHandle, mut params: MountParams) -> Result<(), String> {
+    let manager = app.state::<BackendManager>();
+    let backend = match &params.backend {
+        Some(backend) => backend.clone(),
+        None => manager.get_active().await,
+    };
+    let cache = manager.remote_cache_for(&backend.name);
+    let _guard = cache.mount_operations.lock().await;
+    params.backend = Some(backend);
+    mount_remote_inner(app, params).await
+}
+
+pub(crate) async fn mount_remote_inner(app: AppHandle, params: MountParams) -> Result<(), String> {
     let backend_manager = app.state::<BackendManager>();
     let backend = match &params.backend {
         Some(backend) => backend.clone(),
@@ -153,6 +165,7 @@ pub async fn mount_remote(app: AppHandle, params: MountParams) -> Result<(), Str
         }
 
         let mounted_remote = crate::utils::types::remotes::MountedRemote {
+            settings: None,
             fs: params.source.clone(),
             mount_point: mount_point.clone(),
             starter: params.starter.clone(),
@@ -191,6 +204,7 @@ pub async fn mount_remote(app: AppHandle, params: MountParams) -> Result<(), Str
     }
 
     let payload = params.to_rclone_body()?;
+    let applied_payload = payload.clone();
 
     let log_context = json!({
         "mount_point": params.mount_point,
@@ -232,17 +246,46 @@ pub async fn mount_remote(app: AppHandle, params: MountParams) -> Result<(), Str
     )
     .await?;
 
+    // Bind metadata to the actual filesystem name returned by this successful mount.
+    // Rclone may canonicalize local paths or add a cache suffix to remote names.
+    let discovered =
+        crate::rclone::queries::get_mounted_remotes_for_backend(app.clone(), &backend).await;
+    let actual_fs = discovered
+        .as_ref()
+        .ok()
+        .and_then(|mounts| {
+            mounts.iter().find(|mount| {
+                crate::rclone::state::cache::normalize_mount_path(&mount.mount_point)
+                    == crate::rclone::state::cache::normalize_mount_path(&params.mount_point)
+            })
+        })
+        .map(|mount| mount.fs.clone())
+        .unwrap_or_else(|| params.source.clone());
+    let transport = RoutingTransport::for_backend(app.clone(), backend.clone());
+    let settings = super::mount_settings::capture_settings(
+        transport.as_ref(),
+        &params.source,
+        &actual_fs,
+        &applied_payload,
+    )
+    .await;
+
     // Pre-seed metadata so the reconciliation attaches the starter atomically
     cache
         .preseed_mount_metadata(crate::utils::types::remotes::MountedRemote {
-            fs: params.source.clone(),
+            settings: Some(settings),
+            fs: actual_fs,
             mount_point: params.mount_point.clone(),
             starter: params.starter.clone(),
             origin: params.origin.clone(),
             execute_id: params.execute_id.clone(),
         })
         .await;
-    refresh_mounts_quietly(&app, &backend).await;
+    if let Ok(mounts) = discovered {
+        cache.update_mounts_if_changed(mounts).await;
+    } else {
+        refresh_mounts_quietly(&app, &backend).await;
+    }
 
     let backend_name = backend.name.clone();
     notify(
@@ -291,6 +334,19 @@ pub async fn unmount_remote_profile(
 }
 
 pub(crate) async fn unmount_remote_on_backend(
+    app: AppHandle,
+    backend: Backend,
+    mount_point: String,
+    remote_name: String,
+) -> Result<String, String> {
+    let cache = app
+        .state::<BackendManager>()
+        .remote_cache_for(&backend.name);
+    let _guard = cache.mount_operations.lock().await;
+    unmount_remote_inner(app, backend, mount_point, remote_name).await
+}
+
+pub(crate) async fn unmount_remote_inner(
     app: AppHandle,
     backend: Backend,
     mount_point: String,

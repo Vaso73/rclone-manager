@@ -66,6 +66,7 @@ macro_rules! MASTER_COMMAND_LIST {
             (start_profile_batch, $crate::rclone::commands::sync::start_profile_batch, [transfer_type: $crate::utils::types::remotes::OperationType, params: $crate::utils::types::remotes::ProfileParams]);
 
             // MOUNT OPERATIONS
+            (reconnect_mount_profile, $crate::rclone::commands::mount_settings::reconnect_mount_profile, [params: $crate::rclone::commands::mount_settings::ReconnectMountParams]);
             (mount_remote_profile, $crate::rclone::commands::mount::mount_remote_profile, [params: $crate::utils::types::remotes::ProfileParams]);
             (unmount_remote, $crate::rclone::commands::mount::unmount_remote, [mount_point: String, remote_name: String]);
             (unmount_all_remotes, $crate::rclone::commands::mount::unmount_all_remotes, [context: $crate::rclone::commands::common::OperationContext]);

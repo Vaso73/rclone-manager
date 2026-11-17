@@ -18,6 +18,7 @@ import { InterfaceModeService } from './interface-mode.service';
 import { SimpleWorkspaceComponent } from './simple-workspace.component';
 import { SimpleTaskEditorComponent } from './simple-task-editor.component';
 import { SimpleHistoryComponent } from './simple-history.component';
+import { MountManagementService } from '../services/operations/mount-management.service';
 import { SimpleTask } from './simple-profile.util';
 
 describe('simple workspace actions', () => {
@@ -56,10 +57,14 @@ describe('simple workspace actions', () => {
   const collision = vi.fn();
   const localDrives = vi.fn();
   const stopJob = vi.fn();
+  const reconnect = vi.fn();
+  const refreshMounts = vi.fn();
   beforeEach(() => {
     vi.resetAllMocks();
     activeBackend.set('Local');
     mounted.set([]);
+    reconnect.mockResolvedValue(undefined);
+    refreshMounts.mockResolvedValue([]);
     collision.mockReturnValue([]);
     localDrives.mockResolvedValue([
       { name: 'C:', mount_point: 'C:' },
@@ -76,6 +81,10 @@ describe('simple workspace actions', () => {
     refresh.mockResolvedValue(undefined);
     TestBed.configureTestingModule({
       providers: [
+        {
+          provide: MountManagementService,
+          useValue: { reconnectRemoteProfile: reconnect, getMountedRemotes: refreshMounts },
+        },
         { provide: RemoteManagementService, useValue: { getLocalDrives: localDrives } },
         { provide: IconService, useValue: { getIconName: (): string => 'cloud' } },
         { provide: BackendService, useValue: { activeBackend, isWindows: (): boolean => true } },
@@ -345,6 +354,78 @@ describe('simple workspace actions', () => {
     await c.save();
     expect(c.error()).toBe('simple.errors.driveCollision');
     expect(save).not.toHaveBeenCalled();
+  });
+
+  it('save for later never invokes reconnect, mount or unmount', async () => {
+    mounted.set([{ fs: 'NAS:', mount_point: 'Z:', starter: { kind: 'profile', name: 'Disk' } }]);
+    const c = await diskEditor();
+    c.draft.destination = 'W:';
+    await c.save(false);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(reconnect).not.toHaveBeenCalled();
+    expect(stopJob).not.toHaveBeenCalled();
+    expect(startJob).not.toHaveBeenCalled();
+  });
+  it('saves before reconnecting exactly the captured profile and mount, without a global stop/start', async () => {
+    const active = {
+      fs: 'NAS:',
+      mount_point: 'Z:',
+      starter: { kind: 'profile' as const, name: 'Disk' },
+    };
+    mounted.set([active]);
+    const c = await diskEditor();
+    c.draft.destination = 'W:';
+    const calls: string[] = [];
+    save.mockImplementation(async () => {
+      calls.push('save');
+    });
+    reconnect.mockImplementation(async () => {
+      calls.push('reconnect');
+    });
+    await c.save(true);
+    expect(calls).toEqual(['save', 'reconnect']);
+    expect(reconnect).toHaveBeenCalledExactlyOnceWith('NAS', 'Disk', active, 'Local');
+    expect(refreshMounts).toHaveBeenCalledTimes(1);
+    expect(stopJob).not.toHaveBeenCalled();
+    expect(startJob).not.toHaveBeenCalled();
+  });
+  it('never reconnects after a failed save or a backend switch during saving', async () => {
+    mounted.set([{ fs: 'NAS:', mount_point: 'Z:', starter: { kind: 'profile', name: 'Disk' } }]);
+    const c = await diskEditor();
+    save.mockRejectedValueOnce(new Error('disk full'));
+    await c.save(true);
+    expect(reconnect).not.toHaveBeenCalled();
+    save.mockImplementation(async () => {
+      activeBackend.set('Other');
+    });
+    await c.save(true);
+    expect(reconnect).not.toHaveBeenCalled();
+  });
+  it('leaves saved settings and the editor available after reconnection failure and blocks double clicks', async () => {
+    mounted.set([{ fs: 'NAS:', mount_point: 'Z:', starter: { kind: 'profile', name: 'Disk' } }]);
+    const c = await diskEditor();
+    let fail: (reason: Error) => void = () => {
+      throw new Error('not initialized');
+    };
+    reconnect.mockImplementation(
+      () =>
+        new Promise((_, reject) => {
+          fail = reject;
+        })
+    );
+    const first = c.save(true);
+    await Promise.resolve();
+    await Promise.resolve();
+    await c.save(true);
+    fail(new Error('busy'));
+    await first;
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(reconnect).toHaveBeenCalledTimes(1);
+    expect(c.error()).toBe('simple.drives.savedApplyFailed');
+    expect(c.busy()).toBe(false);
+    expect(mounted()[0].mount_point).toBe('Z:');
+    expect(startJob).not.toHaveBeenCalled();
+    expect(stopJob).not.toHaveBeenCalled();
   });
   async function historyFixture(): Promise<SimpleHistoryComponent> {
     TestBed.overrideComponent(SimpleHistoryComponent, { set: { template: '', imports: [] } });

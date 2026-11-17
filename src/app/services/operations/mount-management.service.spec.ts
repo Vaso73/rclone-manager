@@ -6,6 +6,7 @@ import { MountManagementService } from './mount-management.service';
 import { ApiClientService } from '../infrastructure/platform/api-client.service';
 import { EventListenersService } from '../infrastructure/system/event-listeners.service';
 import { PathService } from '../infrastructure/platform/path.service';
+import { NotificationService } from '../ui/notification.service';
 import type { MountedRemote } from '@app/types';
 
 describe('MountManagementService', () => {
@@ -23,6 +24,7 @@ describe('MountManagementService', () => {
     TestBed.configureTestingModule({
       providers: [
         provideTranslateService(),
+        { provide: NotificationService, useValue: { showSuccess: vi.fn(), showError: vi.fn() } },
         { provide: ApiClientService, useValue: { invoke } },
         {
           provide: EventListenersService,
@@ -71,6 +73,7 @@ describe('MountManagementService', () => {
     TestBed.configureTestingModule({
       providers: [
         provideTranslateService(),
+        { provide: NotificationService, useValue: { showSuccess: vi.fn(), showError: vi.fn() } },
         { provide: ApiClientService, useValue: { invoke } },
         {
           provide: EventListenersService,
@@ -87,5 +90,37 @@ describe('MountManagementService', () => {
 
     expect(service.mountedRemotes()).toEqual([]);
     error.mockRestore();
+  });
+  it('sends the captured mount identity and backend in one reconnect command', async () => {
+    const service = create([]);
+    await flush();
+    invoke.mockClear();
+    invoke.mockResolvedValue(undefined);
+    const expected = { fs: 'NAS:folder', mount_point: 'W:', execute_id: 'mount-1' };
+    await service.reconnectRemoteProfile('NAS', 'Disk', expected, 'Local');
+    expect(invoke).toHaveBeenCalledExactlyOnceWith('reconnect_mount_profile', {
+      params: {
+        remoteName: 'NAS',
+        profileName: 'Disk',
+        backendName: 'Local',
+        expectedMountPoint: 'W:',
+        expectedFs: 'NAS:folder',
+        expectedExecuteId: 'mount-1',
+      },
+    });
+    expect(TestBed.inject(NotificationService).showSuccess).toHaveBeenCalled();
+  });
+  it('propagates reconnect failure without a second mount or an unscoped retry', async () => {
+    const service = create([]);
+    await flush();
+    invoke.mockClear();
+    const error = new Error('busy');
+    invoke.mockRejectedValue(error);
+    await expect(
+      service.reconnectRemoteProfile('NAS', 'Disk', { fs: 'NAS:', mount_point: 'W:' }, 'Local')
+    ).rejects.toBe(error);
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(TestBed.inject(NotificationService).showError).toHaveBeenCalled();
+    expect(TestBed.inject(NotificationService).showSuccess).not.toHaveBeenCalled();
   });
 });

@@ -15,11 +15,13 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { TranslatePipe, TranslateService } from '@ngx-translate/core';
-import { REMOTE_CONFIG_KEYS } from '@app/types';
+import { MountedRemote, REMOTE_CONFIG_KEYS } from '@app/types';
 import { RemoteFacadeService } from '../services/facade/remote-facade.service';
 import { BackendService } from '../services/infrastructure/system/backend.service';
 import { FileSystemService } from '../services/operations/file-system.service';
 import { WindowsVssService } from '../services/operations/windows-vss.service';
+import { MountManagementService } from '../services/operations/mount-management.service';
+import { SimpleDiskStateComponent } from './simple-disk-state.component';
 import { RemoteManagementService } from '../services/remote/remote-management.service';
 import { NotificationService } from '../services/ui/notification.service';
 import { getAppCfg, getRcloneCfg } from '../shared/utils/profile-config.util';
@@ -33,6 +35,7 @@ import {
   simpleMountOptions,
   simpleTaskMount,
   patchSimpleMountVfs,
+  simpleMountPending,
 } from './simple-profile.util';
 
 @Component({
@@ -46,6 +49,7 @@ import {
     MatSelectModule,
     MatCheckboxModule,
     TranslatePipe,
+    SimpleDiskStateComponent,
   ],
   templateUrl: './simple-task-editor.component.html',
   styleUrl: './simple-task-editor.component.scss',
@@ -57,6 +61,7 @@ export class SimpleTaskEditorComponent implements OnInit {
   readonly backend = inject(BackendService);
   private readonly files = inject(FileSystemService);
   private readonly remotes = inject(RemoteManagementService);
+  private readonly mounts = inject(MountManagementService);
   private readonly notifications = inject(NotificationService);
   private readonly translate = inject(TranslateService);
   readonly remote = input.required<string>();
@@ -67,6 +72,7 @@ export class SimpleTaskEditorComponent implements OnInit {
   readonly operations = SIMPLE_OPERATIONS.filter(op => op !== 'mount');
   readonly busy = signal(false);
   readonly error = signal('');
+  readonly applying = signal(false);
   private scope = '';
   readonly driveLetters = Array.from({ length: 26 }, (_, i) => String.fromCharCode(90 - i) + ':');
   readonly occupiedLetters = signal<string[]>([]);
@@ -74,9 +80,19 @@ export class SimpleTaskEditorComponent implements OnInit {
   readonly drivesUnavailable = signal(false);
   mountLocation: 'letter' | 'folder' = 'letter';
 
-  currentMount(): string | undefined {
+  mounted(): MountedRemote | undefined {
     const task = this.task();
-    return task ? simpleTaskMount(task, this.facade.mountedRemotes())?.mount_point : undefined;
+    return task ? simpleTaskMount(task, this.facade.mountedRemotes()) : undefined;
+  }
+  currentMount(): string | undefined {
+    return this.mounted()?.mount_point;
+  }
+  needsReconnect(): boolean {
+    return (
+      this.draft.operation === 'mount' &&
+      !!this.mounted() &&
+      simpleMountPending(this.mounted(), this.draft) !== false
+    );
   }
   letterUnavailable(letter: string): boolean {
     return (
@@ -170,7 +186,7 @@ export class SimpleTaskEditorComponent implements OnInit {
     }
   }
 
-  async save(): Promise<void> {
+  async save(reconnect = false): Promise<void> {
     if (this.busy()) return;
     this.error.set('');
     if (this.scope !== this.backend.activeBackend() || !this.facade.isRemoteActive(this.remote())) {
@@ -236,22 +252,43 @@ export class SimpleTaskEditorComponent implements OnInit {
       }
     }
     this.busy.set(true);
+    const expected = this.mounted();
+    let persisted = false;
     try {
       const settings = this.facade.getRemoteSettings(this.remote());
-      const profile = patchSimpleProfile(this.task()?.config, this.draft, settings);
+      const profile = patchSimpleProfile(
+        this.task()?.config,
+        this.draft,
+        settings,
+        reconnect && this.draft.operation === 'mount'
+      );
       const vfsUpdate = patchSimpleMountVfs(settings, this.task()?.config, this.draft, profile);
       await this.facade.updateRemoteSettings(this.remote(), {
         ...vfsUpdate,
         [key]: { ...profiles, [name]: profile },
       });
+      persisted = true;
+      if (this.scope !== this.backend.activeBackend()) {
+        this.error.set('simple.errors.scope');
+        return;
+      }
+      if (reconnect && this.draft.operation === 'mount' && expected) {
+        this.applying.set(true);
+        await this.mounts.reconnectRemoteProfile(this.remote(), name, expected, this.scope);
+        if (this.scope !== this.backend.activeBackend()) return;
+        await this.mounts.getMountedRemotes();
+      }
       if (this.scope === this.backend.activeBackend()) this.saved.emit();
     } catch (error) {
       this.error.set(
         error instanceof Error && error.message.startsWith('simple.')
           ? error.message
-          : 'simple.errors.save'
+          : persisted && reconnect
+            ? 'simple.drives.savedApplyFailed'
+            : 'simple.errors.save'
       );
     } finally {
+      this.applying.set(false);
       this.busy.set(false);
     }
   }

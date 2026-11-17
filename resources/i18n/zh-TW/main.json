@@ -3287,7 +3287,11 @@
       "driveLetterInUse": "所選磁碟機代號已被系統佔用。",
       "permissionDenied": "嘗試掛載時許可權不足。",
       "deviceBusy": "目標掛載點或裝置正忙。請關閉存取該目錄的已開啟檔案、檔案管理員或終端機後重試。",
-      "profileNotMounted": "設定檔案 '{{profile}}' 未在 {{remote}} 上掛載"
+      "profileNotMounted": "設定檔案 '{{profile}}' 未在 {{remote}} 上掛載",
+      "reconnectChanged": "The connection or selected backend changed. Refresh the disk list and try again.",
+      "reconnectStillMounted": "The original disk is still connected. A new connection was not started.",
+      "reconnectUnsupported": "This mount type requires manual disconnect and reconnect.",
+      "reconnectSettingsDiffer": "The disk is connected but did not confirm all requested options. Check current and pending settings."
     },
     "operations": {
       "configIncomplete": "設定檔案 '{{profile}}' 設定不完整",
@@ -4724,7 +4728,7 @@
       "accountSettings": "Account settings"
     },
     "drives": {
-      "add": "Connect a disk",
+      "add": "Add disk",
       "skip": "Continue without a disk",
       "connect": "Connect",
       "empty": "No disks configured for this connection. You can go straight to Tasks.",
@@ -4741,7 +4745,32 @@
       "local": "Local disk",
       "inUse": "in use",
       "unavailable": "Could not check existing drives. Refresh the list before saving.",
-      "pathHelpTitle": "Choosing a mount location"
+      "pathHelpTitle": "Choosing a mount location",
+      "name": "Disk name",
+      "edit": "Edit disk",
+      "save": "Save disk",
+      "saveLater": "Save for later",
+      "saveReconnect": "Save and reconnect",
+      "current": "Current",
+      "pending": "Pending",
+      "savedSettings": "Saved settings",
+      "nextMount": "On connection",
+      "currentSource": "Current source",
+      "pendingHelp": "Pending settings apply on reconnection.",
+      "unknownHelp": "Active connection details are unavailable. Saved settings apply on reconnection.",
+      "unknownType": "Type unknown",
+      "unknownAccess": "Access unknown",
+      "readWrite": "Read and write",
+      "disconnect": "Disconnect",
+      "reconnectHelp": "Save and reconnect briefly interrupts disk access. Finish working with files on this disk before applying.",
+      "saving": "Saving…",
+      "applying": "Applying disk settings…",
+      "reconnected": "Disk {{remote}} reconnected with the saved settings.",
+      "reconnectFailed": "Could not fully apply settings for disk {{remote}}: {{error}}",
+      "savedApplyFailed": "Settings were saved but could not be fully applied. Check the current disk state and pending settings.",
+      "connectTitle": "Connect disk",
+      "confirm": "Disk: {{name}}\nSource: {{source}}\nLocation: {{destination}}\nType: {{type}}\nAccess: {{access}}\nConnect the disk now?",
+      "source": "Storage or folder"
     },
     "tasks": {
       "add": "Create a task",
@@ -4779,7 +4808,7 @@
       "bisync": "Two-way sync",
       "move": "Move",
       "check": "Verify files",
-      "mount": "Mounted disk",
+      "mount": "Disk",
       "serve": "Share files"
     },
     "operationHelp": {

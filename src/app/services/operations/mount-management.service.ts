@@ -92,6 +92,33 @@ export class MountManagementService extends TauriBaseService {
     );
   }
 
+  async reconnectRemoteProfile(
+    remoteName: string,
+    profileName: string,
+    expected: MountedRemote,
+    backendName: string
+  ): Promise<void> {
+    await this.invokeWithNotification(
+      'reconnect_mount_profile',
+      {
+        params: {
+          remoteName,
+          profileName,
+          backendName,
+          expectedMountPoint: expected.mount_point,
+          expectedFs: expected.fs,
+          expectedExecuteId: expected.execute_id ?? null,
+        },
+      },
+      {
+        successKey: 'simple.drives.reconnected',
+        successParams: { remote: remoteName },
+        errorKey: 'simple.drives.reconnectFailed',
+        errorParams: { remote: remoteName },
+      }
+    );
+  }
+
   async unmountRemote(mountPoint: string, remoteName: string): Promise<void> {
     await this.invokeWithNotification(
       'unmount_remote',

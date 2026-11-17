@@ -1,21 +1,25 @@
-<form class="detail-section" (ngSubmit)="save()">
+<form [attr.aria-busy]="busy()" class="detail-section" (ngSubmit)="save()">
   <h2>
     {{
       (task()
-        ? 'simple.tasks.edit'
+        ? draft.operation === 'mount'
+          ? 'simple.drives.edit'
+          : 'simple.tasks.edit'
         : draft.operation === 'mount'
           ? 'simple.drives.add'
           : 'simple.tasks.add'
       ) | translate
     }}
   </h2>
-  <div class="editor-body">
+  <div class="editor-body" [inert]="busy()">
     @if (task()?.multipleSources) {
       <p role="alert">{{ 'simple.tasks.complex' | translate }}</p>
     }
     <div class="editor-fields">
       <mat-form-field
-        ><mat-label>{{ 'simple.tasks.name' | translate }}</mat-label
+        ><mat-label>{{
+          (draft.operation === 'mount' ? 'simple.drives.name' : 'simple.tasks.name') | translate
+        }}</mat-label
         ><input matInput name="name" [(ngModel)]="draft.name" [readonly]="!!task()" required
       /></mat-form-field>
       @if (draft.operation !== 'mount') {
@@ -35,7 +39,9 @@
     </details>
     <div class="path-field">
       <mat-form-field
-        ><mat-label>{{ 'simple.tasks.source' | translate }}</mat-label
+        ><mat-label>{{
+          (draft.operation === 'mount' ? 'simple.drives.source' : 'simple.tasks.source') | translate
+        }}</mat-label
         ><input matInput name="source" [(ngModel)]="draft.source" required
       /></mat-form-field>
       <button
@@ -124,8 +130,15 @@
         <summary>{{ 'simple.drives.pathHelpTitle' | translate }}</summary>
         <p>{{ 'simple.drives.pathHelp' | translate }}</p>
       </details>
-      @if (currentMount(); as current) {
-        <p role="status">{{ 'simple.drives.saveConnected' | translate: { path: current } }}</p>
+      <app-simple-disk-state
+        [active]="mounted()"
+        [source]="draft.source"
+        [destination]="draft.destination"
+        [networkDrive]="draft.networkDrive"
+        [readOnly]="draft.readOnly"
+      ></app-simple-disk-state>
+      @if (needsReconnect()) {
+        <p>{{ 'simple.drives.reconnectHelp' | translate }}</p>
       }
       <mat-checkbox name="readonly" [(ngModel)]="draft.readOnly">{{
         'simple.drives.readOnly' | translate
@@ -213,15 +226,38 @@
     }
   </div>
   <footer class="editor-actions">
+    @if (busy()) {
+      <span role="status">{{
+        (applying() ? 'simple.drives.applying' : 'simple.drives.saving') | translate
+      }}</span>
+    }
     <button matButton type="button" (click)="cancelled.emit()" [disabled]="busy()">
       {{ 'common.cancel' | translate }}</button
     ><button
-      matButton="filled"
+      [matButton]="needsReconnect() ? 'text' : 'filled'"
       type="submit"
       data-tone="primary"
       [disabled]="busy() || !!task()?.multipleSources"
     >
-      {{ 'simple.tasks.saveOnly' | translate }}
+      {{
+        (draft.operation === 'mount'
+          ? mounted()
+            ? 'simple.drives.saveLater'
+            : 'simple.drives.save'
+          : 'simple.tasks.saveOnly'
+        ) | translate
+      }}
     </button>
+    @if (needsReconnect()) {
+      <button
+        matButton="filled"
+        type="button"
+        data-tone="primary"
+        (click)="save(true)"
+        [disabled]="busy() || !!task()?.multipleSources"
+      >
+        {{ 'simple.drives.saveReconnect' | translate }}
+      </button>
+    }
   </footer>
 </form>

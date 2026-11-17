@@ -39,6 +39,7 @@ import {
   simpleMountOptions,
 } from './simple-profile.util';
 import { SimpleTaskEditorComponent } from './simple-task-editor.component';
+import { SimpleDiskStateComponent } from './simple-disk-state.component';
 import { SimpleHistoryComponent } from './simple-history.component';
 
 type SimplePage = 'connections' | 'drives' | 'tasks' | 'history';
@@ -55,6 +56,7 @@ type SimplePage = 'connections' | 'drives' | 'tasks' | 'history';
     PillDirective,
     SimpleTaskEditorComponent,
     SimpleHistoryComponent,
+    SimpleDiskStateComponent,
     DatePipe,
     DecimalPipe,
   ],
@@ -208,14 +210,27 @@ export class SimpleWorkspaceComponent {
     try {
       if (!preview && task.operation !== 'check') {
         const ok = await this.notifications.confirmModal(
-          'simple.tasks.run',
-          this.translate.instant('simple.tasks.confirm', {
-            name: task.name,
-            source: task.source,
-            destination: task.destination,
-            action: this.translate.instant('simple.operationHelp.' + task.operation),
-          }),
-          'simple.tasks.run',
+          task.operation === 'mount' ? 'simple.drives.connectTitle' : 'simple.tasks.run',
+          this.translate.instant(
+            task.operation === 'mount' ? 'simple.drives.confirm' : 'simple.tasks.confirm',
+            {
+              name: task.name,
+              type: this.translate.instant(
+                this.mountOptions(task).networkDrive
+                  ? 'simple.drives.network'
+                  : 'simple.drives.local'
+              ),
+              access: this.translate.instant(
+                this.mountOptions(task).readOnly
+                  ? 'simple.drives.readOnly'
+                  : 'simple.drives.readWrite'
+              ),
+              source: task.source,
+              destination: task.destination,
+              action: this.translate.instant('simple.operationHelp.' + task.operation),
+            }
+          ),
+          task.operation === 'mount' ? 'simple.drives.connect' : 'simple.tasks.run',
           'common.cancel'
         );
         if (!ok) return;

@@ -27,6 +27,7 @@ impl RemoteCache {
             remotes: RwLock::new(Vec::new()),
             configs: RwLock::new(json!({})),
             mounted: RwLock::new(Vec::new()),
+            mount_operations: tokio::sync::Mutex::new(()),
             serves: RwLock::new(Vec::new()),
         }
     }
@@ -43,13 +44,13 @@ impl RemoteCache {
             .into_iter()
             .map(|mut m| {
                 let norm = normalize_mount_path(&m.mount_point);
-                if let Some(e) = existing
-                    .iter()
-                    .find(|e| normalize_mount_path(&e.mount_point) == norm)
-                {
+                if let Some(e) = existing.iter().find(|e| {
+                    normalize_mount_path(&e.mount_point) == norm && same_mount_source(&m.fs, &e.fs)
+                }) {
                     m.starter = e.starter.clone();
                     m.execute_id = e.execute_id.clone();
                     m.origin = e.origin.clone();
+                    m.settings = e.settings.clone();
                 }
                 m
             })
@@ -472,6 +473,19 @@ pub async fn rename_serve_profile_in_cache(
     Ok(updated)
 }
 
+/// Only rclone's cached-name suffix may differ; a different source loses old ownership.
+fn same_mount_source(a: &str, b: &str) -> bool {
+    if a == b {
+        return true;
+    }
+    match (a.split_once(':'), b.split_once(':')) {
+        (Some((left, a_root)), Some((right, b_root))) => {
+            normalize_remote_name(left) == normalize_remote_name(right) && a_root == b_root
+        }
+        _ => false,
+    }
+}
+
 /// Normalize a mount path for robust equality comparison across platforms and slashes.
 pub fn normalize_mount_path(path: &str) -> String {
     let p = path.replace('\\', "/");
@@ -641,6 +655,7 @@ mod tests {
     #[test]
     fn test_merge_mount_profiles_preserves_metadata() {
         let existing = vec![MountedRemote {
+            settings: None,
             fs: "drive:".to_string(),
             mount_point: "/mnt/drive".to_string(),
             starter: Some(Starter::quick_run(
@@ -705,6 +720,7 @@ mod tests {
     async fn test_update_mounts_preserves_profiles_and_detects_changes() {
         let cache = RemoteCache::new();
         let mounts1 = vec![MountedRemote {
+            settings: None,
             fs: "drive:".to_string(),
             mount_point: "/mnt/drive".to_string(),
             starter: Some(Starter::profile("profile-a")),
@@ -742,5 +758,51 @@ mod tests {
         // Same serves: should return false (no change)
         let changed_same = cache.update_serves_if_changed(serves1).await;
         assert!(!changed_same);
+    }
+    #[tokio::test]
+    async fn applied_mount_settings_survive_refresh_without_inheriting_a_replaced_filesystem() {
+        use crate::utils::types::remotes::MountedSettings;
+        let cache = RemoteCache::new();
+        let mut old = profiled_mount("NAS:", "W:", "Disk");
+        old.settings = Some(MountedSettings {
+            source: "NAS:".into(),
+            network_mode: Some(false),
+            read_only: Some(true),
+        });
+        cache.preseed_mount_metadata(old.clone()).await;
+        cache
+            .update_mounts_if_changed(vec![MountedRemote::new("NAS:", "W:")])
+            .await;
+        assert_eq!(
+            cache.get_mount_by_point("W:").await.unwrap().settings,
+            old.settings
+        );
+        cache
+            .update_mounts_if_changed(vec![MountedRemote::new("Other:", "W:")])
+            .await;
+        assert!(
+            cache
+                .get_mount_by_point("W:")
+                .await
+                .unwrap()
+                .settings
+                .is_none()
+        );
+    }
+    #[test]
+    fn mount_settings_metadata_may_follow_a_cached_name_but_never_a_replaced_source() {
+        let mut old = MountedRemote::new("NAS:folder", "W:");
+        old.starter = Some(Starter::profile("Disk"));
+        old.execute_id = Some("old".into());
+        let cached = RemoteCache::merge_mount_profiles(
+            vec![MountedRemote::new("NAS{cached}:folder", "W:")],
+            &[old.clone()],
+        );
+        assert_eq!(cached[0].execute_id.as_deref(), Some("old"));
+        let replaced =
+            RemoteCache::merge_mount_profiles(vec![MountedRemote::new("NAS:other", "W:")], &[old]);
+        assert!(replaced[0].starter.is_none());
+        assert!(replaced[0].execute_id.is_none());
+        assert!(replaced[0].settings.is_none());
     }
 }

@@ -3287,7 +3287,11 @@
       "driveLetterInUse": "Vybrané písmeno jednotky už systém používa.",
       "permissionDenied": "Pri pokuse o pripojenie bol odmietnutý prístup.",
       "deviceBusy": "Cieľový bod pripojenia alebo zariadenie je zaneprázdnené. Zatvorte otvorené súbory, správcov súborov alebo terminály, ktoré pristupujú k priečinku, a skúste to znova.",
-      "profileNotMounted": "Profil '{{profile}}' nie je pripojený na {{remote}}"
+      "profileNotMounted": "Profil '{{profile}}' nie je pripojený na {{remote}}",
+      "reconnectChanged": "Pripojenie alebo vybrané jadro sa medzitým zmenilo. Obnov zoznam diskov a skús to znova.",
+      "reconnectStillMounted": "Pôvodný disk zostáva pripojený. Nové pripojenie sa nespustilo.",
+      "reconnectUnsupported": "Tento typ pripojenia vyžaduje ručné odpojenie a pripojenie.",
+      "reconnectSettingsDiffer": "Disk je pripojený, ale nepotvrdil všetky požadované voľby. Skontroluj aktuálne a čakajúce nastavenia."
     },
     "operations": {
       "configIncomplete": "Konfigurácia pre profil '{{profile}}' je neúplná",
@@ -4724,7 +4728,7 @@
       "accountSettings": "Nastavenie účtu"
     },
     "drives": {
-      "add": "Pripojiť disk",
+      "add": "Pridať disk",
       "skip": "Pokračovať bez disku",
       "connect": "Pripojiť",
       "empty": "Pre toto pripojenie nemáš nastavený disk. Môžeš pokračovať rovno na Úlohy.",
@@ -4741,7 +4745,32 @@
       "local": "Lokálny disk",
       "inUse": "obsadené",
       "unavailable": "Zoznam jednotiek sa nepodarilo overiť. Obnov ho pred uložením.",
-      "pathHelpTitle": "Ako vybrať miesto pripojenia"
+      "pathHelpTitle": "Ako vybrať miesto pripojenia",
+      "name": "Názov disku",
+      "edit": "Upraviť disk",
+      "save": "Uložiť disk",
+      "saveLater": "Uložiť na neskôr",
+      "saveReconnect": "Uložiť a znovupripojiť",
+      "current": "Aktuálne",
+      "pending": "Čaká na použitie",
+      "savedSettings": "Uložené nastavenia",
+      "nextMount": "Pri pripojení",
+      "currentSource": "Aktuálny zdroj",
+      "pendingHelp": "Čakajúce nastavenia sa použijú pri opätovnom pripojení.",
+      "unknownHelp": "Podrobnosti aktívneho pripojenia nie sú dostupné. Uložené nastavenia sa použijú pri opätovnom pripojení.",
+      "unknownType": "Typ nezistený",
+      "unknownAccess": "Prístup nezistený",
+      "readWrite": "Čítanie a zápis",
+      "disconnect": "Odpojiť",
+      "reconnectHelp": "Uložiť a znovupripojiť krátko preruší prístup k disku. Pred použitím dokonči prácu so súbormi na tomto disku.",
+      "saving": "Ukladám…",
+      "applying": "Používam nastavenia disku…",
+      "reconnected": "Disk {{remote}} bol znovu pripojený s uloženými nastaveniami.",
+      "reconnectFailed": "Použitie nastavení disku {{remote}} sa nepodarilo dokončiť: {{error}}",
+      "savedApplyFailed": "Nastavenia sú uložené, ale ich použitie sa nepodarilo dokončiť. Skontroluj aktuálny stav disku a čakajúce nastavenia.",
+      "connectTitle": "Pripojiť disk",
+      "confirm": "Disk: {{name}}\nZdroj: {{source}}\nMiesto: {{destination}}\nTyp: {{type}}\nPrístup: {{access}}\nPripojiť disk teraz?",
+      "source": "Úložisko alebo priečinok"
     },
     "tasks": {
       "add": "Vytvoriť úlohu",
@@ -4779,7 +4808,7 @@
       "bisync": "Obojsmerná synchronizácia",
       "move": "Presun",
       "check": "Overenie súborov",
-      "mount": "Pripojený disk",
+      "mount": "Disk",
       "serve": "Zdieľanie súborov"
     },
     "operationHelp": {

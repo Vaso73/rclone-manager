@@ -42,8 +42,18 @@ pub fn dest_path(rclone: &Value) -> Option<String> {
         .find_map(|key| paths_at(rclone, key).into_iter().next())
 }
 
+/// Non-secret options captured from a successful mount, never inferred from later edits.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct MountedSettings {
+    pub source: String,
+    pub network_mode: Option<bool>,
+    pub read_only: Option<bool>,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct MountedRemote {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub settings: Option<MountedSettings>,
     pub fs: String,
     pub mount_point: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -58,6 +68,7 @@ impl MountedRemote {
     #[must_use]
     pub fn new(fs: impl Into<String>, mount_point: impl Into<String>) -> Self {
         Self {
+            settings: None,
             fs: fs.into(),
             mount_point: mount_point.into(),
             starter: None,
@@ -124,6 +135,8 @@ pub struct RemoteCache {
     pub remotes: RwLock<Vec<String>>,
     pub configs: RwLock<serde_json::Value>,
     pub mounted: RwLock<Vec<MountedRemote>>,
+    /// Serialize mount mutations, including an entire disconnect/reconnect sequence.
+    pub mount_operations: tokio::sync::Mutex<()>,
     pub serves: RwLock<Vec<ServeInstance>>,
 }
 

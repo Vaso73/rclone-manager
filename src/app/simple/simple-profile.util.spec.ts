@@ -9,6 +9,7 @@ import {
   simpleSchedule,
   splitSimplePath,
   simpleMountOptions,
+  simpleMountPending,
   patchSimpleMountVfs,
 } from './simple-profile.util';
 
@@ -255,5 +256,72 @@ describe('shared VFS settings in simple disk editing', () => {
     expect(profile.app?.vfsProfile).toBe('Backup (disk) 2');
     expect(result.vfsConfigs?.['Backup (disk) 2']).toEqual({ ReadOnly: false, CacheMode: 'full' });
     expect(result.vfsConfigs?.[DEFAULT_PROFILE_NAME]['ReadOnly']).toBe(true);
+  });
+});
+
+describe('live versus saved mount settings', () => {
+  const plan = { source: 'NAS:', destination: 'W:', networkDrive: false, readOnly: false };
+  const active = {
+    fs: 'NAS:',
+    mount_point: 'W:',
+    settings: { source: 'NAS:', network_mode: false, read_only: false },
+  };
+  it('clears pending state only when the active snapshot matches', () => {
+    expect(simpleMountPending(active, plan)).toBe(false);
+    expect(simpleMountPending(undefined, plan)).toBe(false);
+    expect(simpleMountPending(active, { ...plan, destination: 'V:' })).toBe(true);
+    expect(simpleMountPending(active, { ...plan, networkDrive: true })).toBe(true);
+    expect(simpleMountPending(active, { ...plan, readOnly: true })).toBe(true);
+    expect(simpleMountPending(active, { ...plan, source: 'NAS:other' })).toBe(true);
+    expect(active.settings.network_mode).toBe(false);
+  });
+  it('does not invent current options from the saved profile when launch data is missing', () => {
+    expect(simpleMountPending({ fs: 'NAS:', mount_point: 'W:' }, plan)).toBeUndefined();
+    expect(
+      simpleMountPending({ ...active, settings: { ...active.settings, network_mode: null } }, plan)
+    ).toBeUndefined();
+    expect(
+      simpleMountPending({ fs: 'NAS:', mount_point: 'W:' }, { ...plan, destination: 'V:' })
+    ).toBe(true);
+  });
+  it('normalizes cached fs names and Windows slashes while preserving case-sensitive Unix paths', () => {
+    expect(
+      simpleMountPending(
+        { ...active, fs: 'NAS{cached}:', settings: undefined, mount_point: 'w:\\' },
+        plan
+      )
+    ).toBeUndefined();
+    expect(
+      simpleMountPending(
+        { ...active, mount_point: '/mount/A' },
+        { ...plan, destination: '/mount/a' }
+      )
+    ).toBe(true);
+  });
+});
+
+describe('explicit disk apply', () => {
+  it('writes the displayed choices even when legacy flags were absent, preserving unrelated options', () => {
+    const original = {
+      app: { vfsProfile: DEFAULT_PROFILE_NAME },
+      rclone: { fs: 'NAS:', mountPoint: 'W:', cacheDir: '/cache' },
+    };
+    const before = structuredClone(original);
+    const result = patchSimpleProfile(
+      original,
+      draft({
+        operation: 'mount',
+        source: 'NAS:',
+        destination: 'W:',
+        networkDrive: false,
+        readOnly: false,
+      }),
+      {},
+      true
+    );
+    expect(result.rclone?.['mountOpt']).toEqual({ NetworkMode: false });
+    expect(result.rclone?.['vfsOpt']).toEqual({ ReadOnly: false });
+    expect(result.rclone?.['cacheDir']).toBe('/cache');
+    expect(original).toEqual(before);
   });
 });

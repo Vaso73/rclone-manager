@@ -182,7 +182,8 @@ function setMountOption(
 export function patchSimpleProfile(
   existing: ProfileConfig | undefined,
   draft: SimpleTaskDraft,
-  settings: RemoteSettings = {}
+  settings: RemoteSettings = {},
+  applyMountOptions = false
 ): ProfileConfig {
   const app: AppConfig = { ...getAppCfg(existing) };
   const rclone: NonNullable<ProfileConfig['rclone']> = { ...getRcloneCfg(existing) };
@@ -195,13 +196,13 @@ export function patchSimpleProfile(
     rclone.fs = draft.source.trim();
     rclone.mountPoint = draft.destination.trim();
     const original = simpleMountOptions(existing, settings);
-    if (!existing || original.networkDrive !== draft.networkDrive)
+    if (!existing || applyMountOptions || original.networkDrive !== draft.networkDrive)
       setMountOption(
         rclone,
         ['NetworkMode', 'network_mode', 'network-mode', 'networkMode'],
         draft.networkDrive
       );
-    if (!existing || original.readOnly !== draft.readOnly)
+    if (!existing || applyMountOptions || original.readOnly !== draft.readOnly)
       setMountOption(rclone, ['ReadOnly', 'read_only', 'read-only', 'readOnly'], draft.readOnly);
   } else if (draft.operation === 'serve') {
     rclone.fs = draft.source.trim();
@@ -309,4 +310,40 @@ export function patchSimpleMountVfs(
       [name]: updated,
     },
   };
+}
+
+export interface SimpleMountPlan {
+  source: string;
+  destination: string;
+  networkDrive: boolean;
+  readOnly: boolean;
+}
+
+/** Unknown launch settings stay unknown; saved settings never stand in for live state. */
+export function simpleMountPending(
+  mount: MountedRemote | undefined,
+  plan: SimpleMountPlan
+): boolean | undefined {
+  if (!mount) return false;
+  const source = (value: string): string => {
+    const parts = splitSimplePath(value.trim());
+    return parts.remote ? normalizeRemoteName(parts.remote) + ':' + parts.path : parts.path;
+  };
+  const point = (value: string): string => {
+    const path = value.replace(/[\\/]+$/, '');
+    return /^[a-z]:/i.test(path) ? path.replace(/\\/g, '/').toLowerCase() : path;
+  };
+  if (
+    point(mount.mount_point) !== point(plan.destination.trim()) ||
+    source(mount.settings?.source ?? mount.fs) !== source(plan.source)
+  )
+    return true;
+  const options = mount.settings;
+  if (
+    (options?.network_mode != null && options.network_mode !== plan.networkDrive) ||
+    (options?.read_only != null && options.read_only !== plan.readOnly)
+  )
+    return true;
+  if (options?.network_mode == null || options.read_only == null) return undefined;
+  return false;
 }

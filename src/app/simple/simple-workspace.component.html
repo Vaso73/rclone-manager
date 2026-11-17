@@ -179,7 +179,7 @@
                   <span>{{ 'simple.tasks.source' | translate }}</span
                   ><strong class="truncate" [title]="task.source">{{ task.source }}</strong>
                 </div>
-                @if (task.destination) {
+                @if (task.destination && task.operation !== 'mount') {
                   <div class="task-path">
                     <span>{{ 'simple.tasks.destination' | translate }}</span
                     ><strong
@@ -200,20 +200,14 @@
                   }}</span>
                 }
                 @if (task.operation === 'mount') {
-                  <div class="drive-state">
-                    <span>{{
-                      (mountOptions(task).networkDrive
-                        ? 'simple.drives.network'
-                        : 'simple.drives.local'
-                      ) | translate
-                    }}</span>
-                    @if (mountOptions(task).readOnly) {
-                      <span>{{ 'simple.drives.readOnly' | translate }}</span>
-                    }
-                    @if (active(task)) {
-                      <span>{{ 'simple.drives.nextConnection' | translate }}</span>
-                    }
-                  </div>
+                  @let options = mountOptions(task);
+                  <app-simple-disk-state
+                    [active]="mount(task)"
+                    [source]="task.source"
+                    [destination]="task.destination"
+                    [networkDrive]="options.networkDrive"
+                    [readOnly]="options.readOnly"
+                  ></app-simple-disk-state>
                 }
                 @if (task.operation !== 'mount' && latest(task); as job) {
                   <div class="card-row-item">
@@ -271,7 +265,12 @@
                 </button>
                 @if (active(task)) {
                   <button matButton (click)="stop(task)" [disabled]="pending()">
-                    {{ 'simple.tasks.stop' | translate }}
+                    {{
+                      (task.operation === 'mount'
+                        ? 'simple.drives.disconnect'
+                        : 'simple.tasks.stop'
+                      ) | translate
+                    }}
                   </button>
                 }
                 <button
@@ -279,7 +278,10 @@
                   (click)="edit(task)"
                   [disabled]="pending() || (task.operation !== 'mount' && active(task))"
                 >
-                  {{ 'simple.tasks.edit' | translate }}
+                  {{
+                    (task.operation === 'mount' ? 'simple.drives.edit' : 'simple.tasks.edit')
+                      | translate
+                  }}
                 </button>
               </mat-card-actions>
             </mat-card>

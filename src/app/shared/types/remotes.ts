@@ -37,7 +37,14 @@ export interface RemoteSettingsSection {
   group?: 'operation' | 'shared';
 }
 
+export interface MountedSettings {
+  source: string;
+  network_mode: boolean | null;
+  read_only: boolean | null;
+}
+
 export interface MountedRemote {
+  settings?: MountedSettings;
   fs: string;
   mount_point: string;
   starter?: Starter;
