@@ -184,6 +184,8 @@ export class RemoteConfigStepComponent {
   });
 
   readonly simpleSetup = input(false);
+  readonly sameDriveScope = sameDriveScope;
+  readonly simpleDriveScope = simpleDriveScope;
   readonly basicFields = computed(() => {
     const fields = this.getFieldsByAdvanced(false);
     if (!this.simpleSetup()) return fields;
@@ -504,4 +506,19 @@ export class RemoteConfigStepComponent {
   reshuffleSuggestions(): void {
     this.suggestedRemotes.set(this.shuffleSample(this.remoteTypesWithIcons()));
   }
+}
+
+/** Display known list/string scopes without changing the saved account permissions. */
+export function simpleDriveScope(value: unknown): string {
+  const values = Array.isArray(value) ? value : typeof value === 'string' ? value.split(',') : [];
+  const scopes = values
+    .map(v =>
+      typeof v === 'string' ? v.trim().replace('https://www.googleapis.com/auth/', '') : '?'
+    )
+    .filter(Boolean);
+  if (!scopes.length) return 'drive';
+  return scopes.length === 1 && ['drive', 'drive.readonly'].includes(scopes[0]) ? scopes[0] : '';
+}
+export function sameDriveScope(a: unknown, b: unknown): boolean {
+  return a === b || (!!simpleDriveScope(a) && simpleDriveScope(a) === simpleDriveScope(b));
 }

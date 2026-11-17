@@ -545,11 +545,18 @@ export class ModalService extends TauriBaseService {
     };
     return this.openModal(
       'remote-config',
-      { ...CONFIG_MODAL_SIZE, disableClose: true, data },
+      {
+        ...CONFIG_MODAL_SIZE,
+        ...(options.simpleSetup
+          ? { width: '42rem', maxWidth: '95vw', minWidth: '0', height: 'auto', maxHeight: '90dvh' }
+          : {}),
+        disableClose: true,
+        data,
+      },
       {
         title: this.translate.instant('titlebar.menu.detailedRemote'),
-        width: 1024,
-        height: 768,
+        width: options.simpleSetup ? 672 : 1024,
+        height: options.simpleSetup ? 580 : 768,
         suffix:
           [options.remoteName, options.targetProfile, options.editTarget]
             .filter(Boolean)
@@ -635,7 +642,14 @@ export class ModalService extends TauriBaseService {
   openQuickAddRemote<TResult = unknown>(connectionOnly = false): DialogRefLike<TResult> {
     return this.openModal(
       'quick-add-remote',
-      { ...STANDARD_MODAL_SIZE, disableClose: true, data: { connectionOnly } },
+      {
+        ...STANDARD_MODAL_SIZE,
+        ...(connectionOnly
+          ? { width: '42rem', maxWidth: '95vw', minWidth: '0', height: 'auto', maxHeight: '90dvh' }
+          : {}),
+        disableClose: true,
+        data: { connectionOnly },
+      },
       {
         title: this.translate.instant('titlebar.menu.quickRemote'),
         width: 680,

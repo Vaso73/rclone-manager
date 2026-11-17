@@ -1,5 +1,5 @@
-# Vaso73 fork, branch vaso/windows-build ONLY – never part of the upstream PR.
-# Builds Windows x64 (MSI + portable ZIP) without signing secrets and without
+# Vaso73 fork test workflow – never part of the upstream PR.
+# Builds Windows x64 portable EXE/ZIP without an installer, signing secrets or
 # creating a GitHub Release. Output is available only as workflow artifacts.
 name: 'Release Desktop'
 
@@ -7,6 +7,10 @@ on:
   push:
     branches: [vaso/windows-build]
   workflow_dispatch:
+
+concurrency:
+  group: portable-windows-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -54,10 +58,6 @@ jobs:
         shell: bash
         run: echo '{"bundle":{"createUpdaterArtifacts":false}}' > "$RUNNER_TEMP/no-updater.json"
 
-      - name: Build MSI installer (unsigned)
-        shell: bash
-        run: npm run tauri build -- --target x86_64-pc-windows-msvc --bundles msi --config "$RUNNER_TEMP/no-updater.json"
-
       - name: Build portable executable (unsigned)
         shell: bash
         run: npm run tauri build -- --features portable --target x86_64-pc-windows-msvc --no-bundle --config "$RUNNER_TEMP/no-updater.json"
@@ -99,14 +99,6 @@ jobs:
               (Get-Content $_.FullName).Replace('${VERSION}', $version) | Set-Content "$dirName/$($_.Name)"
           }
           Compress-Archive -Path $dirName -DestinationPath "out/RCloneManager-portable-windows-x86_64-$version-sk.zip"
-
-      - name: Upload MSI artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: rclone-manager-windows-x64-msi
-          path: backend/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
-          if-no-files-found: error
-          retention-days: 30
 
       - name: Upload portable artifact
         uses: actions/upload-artifact@v7

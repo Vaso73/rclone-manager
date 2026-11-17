@@ -20,6 +20,7 @@ import { RemoteFacadeService } from '../services/facade/remote-facade.service';
 import { BackendService } from '../services/infrastructure/system/backend.service';
 import { FileSystemService } from '../services/operations/file-system.service';
 import { WindowsVssService } from '../services/operations/windows-vss.service';
+import { RemoteManagementService } from '../services/remote/remote-management.service';
 import { NotificationService } from '../services/ui/notification.service';
 import { getAppCfg, getRcloneCfg } from '../shared/utils/profile-config.util';
 import {
@@ -30,6 +31,8 @@ import {
   patchSimpleProfile,
   simpleSchedule,
   simpleMountOptions,
+  simpleTaskMount,
+  patchSimpleMountVfs,
 } from './simple-profile.util';
 
 @Component({
@@ -53,6 +56,7 @@ export class SimpleTaskEditorComponent implements OnInit {
   readonly vss = inject(WindowsVssService);
   readonly backend = inject(BackendService);
   private readonly files = inject(FileSystemService);
+  private readonly remotes = inject(RemoteManagementService);
   private readonly notifications = inject(NotificationService);
   private readonly translate = inject(TranslateService);
   readonly remote = input.required<string>();
@@ -64,6 +68,41 @@ export class SimpleTaskEditorComponent implements OnInit {
   readonly busy = signal(false);
   readonly error = signal('');
   private scope = '';
+  readonly driveLetters = Array.from({ length: 26 }, (_, i) => String.fromCharCode(90 - i) + ':');
+  readonly occupiedLetters = signal<string[]>([]);
+  readonly checkingDrives = signal(false);
+  readonly drivesUnavailable = signal(false);
+  mountLocation: 'letter' | 'folder' = 'letter';
+
+  currentMount(): string | undefined {
+    const task = this.task();
+    return task ? simpleTaskMount(task, this.facade.mountedRemotes())?.mount_point : undefined;
+  }
+  letterUnavailable(letter: string): boolean {
+    return (
+      this.occupiedLetters().includes(letter) &&
+      this.currentMount()?.slice(0, 2).toUpperCase() !== letter
+    );
+  }
+  changeMountLocation(location: 'letter' | 'folder'): void {
+    this.mountLocation = location;
+    this.draft.destination = '';
+  }
+  async loadDrives(): Promise<void> {
+    this.checkingDrives.set(true);
+    this.drivesUnavailable.set(false);
+    try {
+      const drives = await this.remotes.getLocalDrives();
+      if (this.scope === this.backend.activeBackend())
+        this.occupiedLetters.set(
+          drives.map(d => (d.mount_point || d.name).slice(0, 2).toUpperCase())
+        );
+    } catch {
+      this.drivesUnavailable.set(true);
+    } finally {
+      this.checkingDrives.set(false);
+    }
+  }
   draft: SimpleTaskDraft = {
     name: '',
     operation: 'sync',
@@ -95,10 +134,17 @@ export class SimpleTaskEditorComponent implements OnInit {
       useVss: app?.useVss ?? false,
       ...simpleSchedule(app),
       oncePerDay: app?.autoStartOncePerDay ?? !task,
-      ...simpleMountOptions(task?.config),
+      ...simpleMountOptions(task?.config, this.facade.getRemoteSettings(this.remote())),
       serveType: typeof rc?.type === 'string' ? rc.type : 'http',
       address: typeof rc?.addr === 'string' ? rc.addr : '127.0.0.1:8080',
     };
+    this.mountLocation =
+      !this.draft.destination || /^[a-z]:[\\/]?$/i.test(this.draft.destination)
+        ? 'letter'
+        : 'folder';
+    if (this.draft.operation === 'mount' && this.mountLocation === 'letter')
+      this.draft.destination = this.draft.destination.slice(0, 2).toUpperCase();
+    if (this.draft.operation === 'mount' && this.backend.isWindows()) void this.loadDrives();
     void this.vss.refresh();
   }
 
@@ -153,10 +199,49 @@ export class SimpleTaskEditorComponent implements OnInit {
       this.error.set('simple.errors.name');
       return;
     }
+    if (this.draft.operation === 'mount') {
+      const destination = this.draft.destination.trim();
+      if (
+        this.backend.isWindows() &&
+        this.mountLocation === 'letter' &&
+        (!/^[A-Z]:$/.test(destination) ||
+          this.checkingDrives() ||
+          this.drivesUnavailable() ||
+          this.letterUnavailable(destination))
+      ) {
+        this.error.set('simple.errors.drive');
+        return;
+      }
+      if (
+        this.facade.checkMountPathCollision(destination, this.remote(), this.task()?.name).length
+      ) {
+        this.error.set('simple.errors.driveCollision');
+        return;
+      }
+      const normalize = (path: string): string => {
+        const value = path.replace(/[\\/]+$/, '');
+        return this.backend.isWindows() ? value.replace(/\\/g, '/').toLowerCase() : value;
+      };
+      if (
+        this.facade
+          .mountedRemotes()
+          .some(
+            m =>
+              normalize(m.mount_point) === normalize(destination) &&
+              m.mount_point !== this.currentMount()
+          )
+      ) {
+        this.error.set('simple.errors.driveCollision');
+        return;
+      }
+    }
     this.busy.set(true);
     try {
-      const profile = patchSimpleProfile(this.task()?.config, this.draft);
+      const settings = this.facade.getRemoteSettings(this.remote());
+      const profile = patchSimpleProfile(this.task()?.config, this.draft, settings);
+      const vfsUpdate = patchSimpleMountVfs(settings, this.task()?.config, this.draft, profile);
       await this.facade.updateRemoteSettings(this.remote(), {
+        ...vfsUpdate,
         [key]: { ...profiles, [name]: profile },
       });
       if (this.scope === this.backend.activeBackend()) this.saved.emit();

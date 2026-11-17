@@ -12,7 +12,14 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
 import { MatCardModule } from '@angular/material/card';
 import { TranslatePipe, TranslateService } from '@ngx-translate/core';
-import { BATCH_OP_LABELS, JOB_STATUS, JobInfo, OPERATION_TONE, profileOf } from '@app/types';
+import {
+  BATCH_OP_LABELS,
+  JOB_STATUS,
+  JobInfo,
+  MountedRemote,
+  OPERATION_TONE,
+  profileOf,
+} from '@app/types';
 import { WorkspaceShellComponent } from '../layout/workspace-shell/workspace-shell.component';
 import { TitlebarComponent } from '../layout/titlebar/titlebar.component';
 import { BannerComponent } from '../layout/banners/banner.component';
@@ -23,8 +30,14 @@ import { ModalService } from '../services/ui/modal.service';
 import { NotificationService } from '../services/ui/notification.service';
 import { NautilusService } from '../services/ui/nautilus.service';
 import { PillDirective } from '../shared/directives/pill.directive';
-import { InterfaceModeService } from './interface-mode.service';
-import { SimpleTask, listSimpleTasks } from './simple-profile.util';
+import { IconService } from '../services/ui/icon.service';
+import {
+  SimpleTask,
+  listSimpleTasks,
+  simpleTaskReady,
+  simpleTaskMount,
+  simpleMountOptions,
+} from './simple-profile.util';
 import { SimpleTaskEditorComponent } from './simple-task-editor.component';
 import { SimpleHistoryComponent } from './simple-history.component';
 
@@ -52,7 +65,11 @@ type SimplePage = 'connections' | 'drives' | 'tasks' | 'history';
 })
 export class SimpleWorkspaceComponent {
   readonly facade = inject(RemoteFacadeService);
-  readonly mode = inject(InterfaceModeService);
+  readonly icons = inject(IconService);
+  readonly ready = simpleTaskReady;
+  mountOptions(task: SimpleTask): { networkDrive: boolean; readOnly: boolean } {
+    return simpleMountOptions(task.config, this.facade.getRemoteSettings(task.remote));
+  }
   readonly backend = inject(BackendService);
   private readonly jobs = inject(JobManagementService);
   private readonly modal = inject(ModalService);
@@ -138,6 +155,15 @@ export class SimpleWorkspaceComponent {
   browse(): void {
     if (this.selected()) void this.browser.openBrowserOverlay(this.selected(), '');
   }
+  editDisk(remote: string): void {
+    this.selected.set(remote);
+    this.navigate('drives');
+    const mounts = this.visibleTasks();
+    if (mounts.length <= 1) this.edit(mounts[0]);
+  }
+  mount(task: SimpleTask): MountedRemote | undefined {
+    return simpleTaskMount(task, this.facade.mountedRemotes());
+  }
   edit(task?: SimpleTask): void {
     if (this.selected())
       this.editor.set({
@@ -154,10 +180,7 @@ export class SimpleWorkspaceComponent {
     this.modal.openJobDetail(job);
   }
   active(task: SimpleTask): boolean {
-    if (task.operation === 'mount')
-      return this.facade
-        .mountedRemotes()
-        .some(mount => mount.mount_point === task.destination && profileOf(mount) === task.name);
+    if (task.operation === 'mount') return !!this.mount(task);
     if (task.operation === 'serve')
       return this.facade
         .runningServes()
@@ -179,7 +202,7 @@ export class SimpleWorkspaceComponent {
     }
   }
   async run(task: SimpleTask, preview: boolean): Promise<void> {
-    if (this.pending() || this.active(task)) return;
+    if (this.pending() || this.active(task) || !this.ready(task)) return;
     this.pending.set(true);
     const scope = this.backend.activeBackend();
     try {

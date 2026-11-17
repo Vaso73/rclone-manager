@@ -2,7 +2,10 @@ import {
   AppConfig,
   DEFAULT_PROFILE_NAME,
   ProfileConfig,
+  MountedRemote,
+  profileOf,
   RemoteSettings,
+  RemoteConfigSections,
   REMOTE_CONFIG_KEYS,
 } from '@app/types';
 import {
@@ -11,6 +14,8 @@ import {
   extractProfileSource,
   extractProfileDest,
 } from '../shared/utils/profile-config.util';
+
+import { normalizeRemoteName } from '../shared/utils/path.utils';
 
 export const SIMPLE_OPERATIONS = [
   'sync',
@@ -78,6 +83,23 @@ export function listSimpleTasks(remote: string, settings: RemoteSettings): Simpl
   });
 }
 
+/** Empty destinations must never expose a runnable default profile. */
+export function simpleTaskReady(task: SimpleTask): boolean {
+  return !!task.source.trim() && (task.operation === 'serve' || !!task.destination.trim());
+}
+
+export function simpleTaskMount(
+  task: SimpleTask,
+  mounts: readonly MountedRemote[]
+): MountedRemote | undefined {
+  if (task.operation !== 'mount') return undefined;
+  return mounts.find(
+    mount =>
+      normalizeRemoteName(splitSimplePath(mount.fs).remote) === task.remote &&
+      profileOf(mount) === task.name
+  );
+}
+
 export function simpleSchedule(app: AppConfig | null | undefined): {
   schedule: SimpleSchedule;
   time: string;
@@ -107,13 +129,18 @@ export function simpleSchedule(app: AppConfig | null | undefined): {
 }
 
 /** Read saved mount flags without treating an absent legacy option as enabled. */
-export function simpleMountOptions(config: ProfileConfig | undefined): {
+export function simpleMountOptions(
+  config: ProfileConfig | undefined,
+  settings: RemoteSettings = {}
+): {
   networkDrive: boolean;
   readOnly: boolean;
 } {
   const rc = getRcloneCfg(config) ?? {};
+  const profile = getAppCfg(config)?.vfsProfile ?? DEFAULT_PROFILE_NAME;
+  const inherited = (settings['vfsConfigs'] as RemoteConfigSections['vfsConfigs'])?.[profile];
   const read = (names: string[], fallback: boolean): boolean => {
-    for (const block of [rc['vfsOpt'], rc['mountOpt'], rc]) {
+    for (const block of [inherited, rc['vfsOpt'], rc['mountOpt'], rc]) {
       if (!block || typeof block !== 'object' || Array.isArray(block)) continue;
       for (const name of names) {
         const value = (block as Record<string, unknown>)[name];
@@ -143,12 +170,19 @@ function setMountOption(
   }
   for (const name of names) if (Object.hasOwn(rc, name)) rc[name] = value;
   rc[names[1]] = value;
+  const blockName = names[0] === 'NetworkMode' ? 'mountOpt' : 'vfsOpt';
+  const previous = rc[blockName];
+  rc[blockName] = {
+    ...(previous && typeof previous === 'object' && !Array.isArray(previous) ? previous : {}),
+    [names[0]]: value,
+  };
 }
 
 /** Patch only exposed fields; preserve filters, linked profiles, credentials and unknown options. */
 export function patchSimpleProfile(
   existing: ProfileConfig | undefined,
-  draft: SimpleTaskDraft
+  draft: SimpleTaskDraft,
+  settings: RemoteSettings = {}
 ): ProfileConfig {
   const app: AppConfig = { ...getAppCfg(existing) };
   const rclone: NonNullable<ProfileConfig['rclone']> = { ...getRcloneCfg(existing) };
@@ -160,7 +194,7 @@ export function patchSimpleProfile(
   } else if (draft.operation === 'mount') {
     rclone.fs = draft.source.trim();
     rclone.mountPoint = draft.destination.trim();
-    const original = simpleMountOptions(existing);
+    const original = simpleMountOptions(existing, settings);
     if (!existing || original.networkDrive !== draft.networkDrive)
       setMountOption(
         rclone,
@@ -233,4 +267,46 @@ export function safeHistoryName(name: string): boolean {
     !/[\\/]/.test(name) &&
     !Array.from(name).some(char => char.charCodeAt(0) < 32)
   );
+}
+
+/** Never modify a shared VFS profile belonging to other mounted disks. */
+export function patchSimpleMountVfs(
+  settings: RemoteSettings,
+  existing: ProfileConfig | undefined,
+  draft: SimpleTaskDraft,
+  profile: ProfileConfig
+): Partial<RemoteConfigSections> {
+  if (draft.operation !== 'mount') return {};
+  const originalName = getAppCfg(existing)?.vfsProfile ?? DEFAULT_PROFILE_NAME;
+  const inherited = (settings['vfsConfigs'] as RemoteConfigSections['vfsConfigs'])?.[originalName];
+  if (!inherited) return {};
+  const original = simpleMountOptions(existing, settings);
+  if (original.readOnly === draft.readOnly && original.networkDrive === draft.networkDrive)
+    return {};
+  const readAliases = ['ReadOnly', 'read_only', 'read-only', 'readOnly'];
+  const networkAliases = ['NetworkMode', 'network_mode', 'network-mode', 'networkMode'];
+  const updated = { ...inherited };
+  let changed = false;
+  for (const [names, value, before] of [
+    [readAliases, draft.readOnly, original.readOnly],
+    [networkAliases, draft.networkDrive, original.networkDrive],
+  ] as const) {
+    if (value === before) continue;
+    for (const key of names)
+      if (Object.hasOwn(updated, key)) {
+        updated[key] = value;
+        changed = true;
+      }
+  }
+  if (!changed) return {};
+  const base = draft.name.trim() + ' (disk)';
+  let name = base;
+  for (let n = 2; Object.hasOwn(settings['vfsConfigs'] ?? {}, name); n++) name = base + ' ' + n;
+  profile.app = { ...profile.app, vfsProfile: name };
+  return {
+    vfsConfigs: {
+      ...(settings['vfsConfigs'] as RemoteConfigSections['vfsConfigs']),
+      [name]: updated,
+    },
+  };
 }

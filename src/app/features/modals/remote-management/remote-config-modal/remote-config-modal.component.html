@@ -29,7 +29,7 @@
   </button>
 </header>
 
-<main class="dull">
+<main [class.simple-setup]="simpleSetup" class="dull">
   <mat-sidenav-container class="modal-sidenav-container">
     @if (!flow.isActive) {
       <mat-sidenav

@@ -7,7 +7,11 @@ import { provideTranslateService, TranslateService } from '@ngx-translate/core';
 import { Observable, of } from 'rxjs';
 import { RemoteProviderOverview } from '@app/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { RemoteConfigStepComponent } from './remote-config-step.component';
+import {
+  simpleDriveScope,
+  sameDriveScope,
+  RemoteConfigStepComponent,
+} from './remote-config-step.component';
 import { RemoteManagementService } from 'src/app/services/remote/remote-management.service';
 import { IconService } from 'src/app/services/ui/icon.service';
 import { UiStateService } from 'src/app/services/ui/state/ui-state.service';
@@ -447,5 +451,19 @@ describe('RemoteConfigStepComponent provider overview', () => {
     expect(panel.textContent).toContain('wizards.remoteConfig.providerOverview.virtualNote');
     expect(panel.querySelector('.provider-capabilities')).toBeNull();
     expect(fixture.componentInstance.providerCapabilities()).toEqual([]);
+  });
+});
+
+describe('simple Drive permission display', () => {
+  it('recognizes known string and list scopes without changing saved values', () => {
+    for (const value of ['drive', ['drive'], ['https://www.googleapis.com/auth/drive'], []]) {
+      const before = structuredClone(value);
+      expect(sameDriveScope(value, 'drive')).toBe(true);
+      expect(value).toEqual(before);
+    }
+    expect(sameDriveScope(['drive.readonly'], 'drive.readonly')).toBe(true);
+    expect(sameDriveScope(['drive.readonly'], 'drive')).toBe(false);
+    expect(simpleDriveScope(['drive.file', 'drive.metadata.readonly'])).toBe('');
+    expect(sameDriveScope(['drive.file'], 'drive')).toBe(false);
   });
 });

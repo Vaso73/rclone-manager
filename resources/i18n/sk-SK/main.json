@@ -4694,7 +4694,8 @@
       "label": "Režim rozhrania",
       "help": "Jednoduchý režim prevedie bežným nastavením. Pokročilý sprístupní všetky možnosti.",
       "simple": "Jednoduchý režim",
-      "advanced": "Pokročilý režim"
+      "advanced": "Pokročilý režim",
+      "switch": "Prepnúť jednoduchý / pokročilý režim"
     },
     "navigation": "Nastavenie a úlohy",
     "loading": "Načítavam…",
@@ -4718,7 +4719,9 @@
       "browse": "Prehliadať súbory",
       "edit": "Upraviť pripojenie",
       "empty": "Zatiaľ nemáš pripojenia. Pridaj prvé úložisko.",
-      "first": "Najprv pridaj alebo vyber pripojenie."
+      "first": "Najprv pridaj alebo vyber pripojenie.",
+      "diskSettings": "Nastavenie disku",
+      "accountSettings": "Nastavenie účtu"
     },
     "drives": {
       "add": "Pripojiť disk",
@@ -4727,8 +4730,18 @@
       "empty": "Pre toto pripojenie nemáš nastavený disk. Môžeš pokračovať rovno na Úlohy.",
       "mountPoint": "Písmeno disku alebo prípojný priečinok",
       "pathHelp": "Vo Windows zadaj voľné písmeno, napríklad X:. V Linuxe alebo macOS použi prípojný priečinok. Pripojenie vyžaduje WinFsp (Windows) alebo FUSE (Linux/macOS).",
-      "network": "Zobraziť ako sieťový disk (Windows)",
-      "readOnly": "Iba na čítanie"
+      "network": "Sieťový disk",
+      "readOnly": "Iba na čítanie",
+      "nextConnection": "Zobrazený typ a voľby sa použijú pri ďalšom pripojení.",
+      "saveConnected": "Disk {{path}} zostane pripojený. Zmeny sa použijú až po odpojení a opätovnom pripojení.",
+      "location": "Pripojiť ako",
+      "letter": "Písmeno jednotky",
+      "folder": "Priečinok",
+      "type": "Typ disku",
+      "local": "Lokálny disk",
+      "inUse": "obsadené",
+      "unavailable": "Zoznam jednotiek sa nepodarilo overiť. Obnov ho pred uložením.",
+      "pathHelpTitle": "Ako vybrať miesto pripojenia"
     },
     "tasks": {
       "add": "Vytvoriť úlohu",
@@ -4755,7 +4768,10 @@
       "vssHelp": "VSS číta stav v jednom okamihu. Neuložené zmeny v aplikáciách sa nezálohujú.",
       "enableVss": "Povoliť snímky (potvrdenie Windows)",
       "preserved": "Filtre a ďalšie pokročilé nastavenia zostanú zachované. Uložením sa úloha nespustí.",
-      "complex": "Táto úloha má viac zdrojov. Uprav ju v pokročilom režime, aby zostali zachované všetky cesty."
+      "complex": "Táto úloha má viac zdrojov. Uprav ju v pokročilom režime, aby zostali zachované všetky cesty.",
+      "needsSetup": "Treba doplniť nastavenia",
+      "explanation": "Čo táto úloha robí",
+      "preservedTitle": "Ďalšie uložené nastavenia"
     },
     "operations": {
       "sync": "Zrkadlenie",
@@ -4798,7 +4814,8 @@
       "empty": "V tomto priečinku zatiaľ nie sú historické verzie.",
       "noTasks": "Zatiaľ nemáš úlohy s nastaveným priečinkom histórie.",
       "runs": "Posledné behy a obnovy",
-      "noRuns": "Zatiaľ tu nie sú záznamy behov."
+      "noRuns": "Zatiaľ tu nie sú záznamy behov.",
+      "activeLabel": "História zapnutá"
     },
     "status": {
       "Running": "Prebieha",
@@ -4814,7 +4831,9 @@
       "duplicate": "Úloha s týmto názvom už pre túto operáciu existuje.",
       "scope": "Aktívny server alebo pripojenie sa zmenilo. Otvor úlohu znova.",
       "save": "Úlohu sa nepodarilo uložiť. Skontroluj pripojenie a skús znova.",
-      "vssSource": "Snímka Windows vyžaduje lokálny zdrojový priečinok. Vyber lokálny zdroj alebo vypni snímku."
+      "vssSource": "Snímka Windows vyžaduje lokálny zdrojový priečinok. Vyber lokálny zdroj alebo vypni snímku.",
+      "drive": "Vyber voľné písmeno jednotky a počkaj na overenie diskov.",
+      "driveCollision": "Toto miesto používa iný disk alebo profil. Vyber iné."
     },
     "sftp": {
       "host": "Adresa servera",
@@ -4831,6 +4850,7 @@
       "readWrite": "Čítanie a zápis",
       "readOnly": "Iba čítanie",
       "existing": "Pôvodné pokročilé nastavenie"
-    }
+    },
+    "dateFormat": "dd.MM.yyyy HH:mm"
   }
 }

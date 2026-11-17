@@ -12,6 +12,8 @@ import { RemoteFileOperationsService } from '../services/remote/remote-file-oper
 import { ModalService } from '../services/ui/modal.service';
 import { NotificationService } from '../services/ui/notification.service';
 import { NautilusService } from '../services/ui/nautilus.service';
+import { RemoteManagementService } from '../services/remote/remote-management.service';
+import { IconService } from '../services/ui/icon.service';
 import { InterfaceModeService } from './interface-mode.service';
 import { SimpleWorkspaceComponent } from './simple-workspace.component';
 import { SimpleTaskEditorComponent } from './simple-task-editor.component';
@@ -48,11 +50,21 @@ describe('simple workspace actions', () => {
     list = vi.fn(),
     refresh = vi.fn(),
     enable = vi.fn();
-  const mounted = signal<{ fs: string; mount_point: string }[]>([]);
+  const mounted = signal<
+    { fs: string; mount_point: string; starter?: { kind: 'profile'; name: string } }[]
+  >([]);
+  const collision = vi.fn();
+  const localDrives = vi.fn();
+  const stopJob = vi.fn();
   beforeEach(() => {
     vi.resetAllMocks();
     activeBackend.set('Local');
     mounted.set([]);
+    collision.mockReturnValue([]);
+    localDrives.mockResolvedValue([
+      { name: 'C:', mount_point: 'C:' },
+      { name: 'D:', mount_point: 'D:' },
+    ]);
     confirm.mockResolvedValue(true);
     startProfileBatch.mockResolvedValue(1);
     startJob.mockResolvedValue(undefined);
@@ -64,6 +76,8 @@ describe('simple workspace actions', () => {
     refresh.mockResolvedValue(undefined);
     TestBed.configureTestingModule({
       providers: [
+        { provide: RemoteManagementService, useValue: { getLocalDrives: localDrives } },
+        { provide: IconService, useValue: { getIconName: (): string => 'cloud' } },
         { provide: BackendService, useValue: { activeBackend, isWindows: (): boolean => true } },
         {
           provide: RemoteFacadeService,
@@ -73,7 +87,8 @@ describe('simple workspace actions', () => {
             isRemoteActive: (): boolean => true,
             updateRemoteSettings: save,
             startJob,
-            stopJob: vi.fn(),
+            stopJob,
+            checkMountPathCollision: collision,
             mountedRemotes: mounted,
             runningServes: signal([]),
           },
@@ -238,6 +253,99 @@ describe('simple workspace actions', () => {
     expect(c.draft.source).toBe(task.source);
   });
 
+  const disk: SimpleTask = {
+    ...task,
+    name: 'Disk',
+    operation: 'mount',
+    source: 'NAS:',
+    destination: 'Z:',
+    config: { rclone: { fs: 'NAS:', mountPoint: 'Z:' }, app: { autoStart: true } },
+  };
+  async function diskEditor(): Promise<SimpleTaskEditorComponent> {
+    TestBed.overrideComponent(SimpleTaskEditorComponent, { set: { template: '', imports: [] } });
+    const fixture = TestBed.createComponent(SimpleTaskEditorComponent);
+    fixture.componentRef.setInput('remote', 'NAS');
+    fixture.componentRef.setInput('task', disk);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    return fixture.componentInstance;
+  }
+  it('never starts an incomplete task, even if invoked outside the disabled button', async () => {
+    const c = TestBed.runInInjectionContext(() => new SimpleWorkspaceComponent());
+    await c.run({ ...task, destination: ' ' }, false);
+    await c.run({ ...task, source: '' }, true);
+    expect(confirm).not.toHaveBeenCalled();
+    expect(startJob).not.toHaveBeenCalled();
+    expect(startProfileBatch).not.toHaveBeenCalled();
+  });
+  it('keeps an existing disk active after editing its desired next letter, scoped to remote and profile', () => {
+    const c = TestBed.runInInjectionContext(() => new SimpleWorkspaceComponent());
+    mounted.set([{ fs: 'Other:', mount_point: 'Z:', starter: { kind: 'profile', name: 'Disk' } }]);
+    expect(c.active(disk)).toBe(false);
+    mounted.set([
+      { fs: 'NAS:path', mount_point: 'Y:', starter: { kind: 'profile', name: 'Disk' } },
+    ]);
+    expect(c.active(disk)).toBe(true);
+    expect(c.mount(disk)?.mount_point).toBe('Y:');
+    c.page.set('drives');
+    c.edit(disk);
+    expect(c.validEditor()?.task).toBe(disk);
+    expect(startJob).not.toHaveBeenCalled();
+    expect(stopJob).not.toHaveBeenCalled();
+  });
+  it('saves a connected disk letter, local/network mode, read-only and startup without disconnecting', async () => {
+    mounted.set([{ fs: 'NAS:', mount_point: 'Z:', starter: { kind: 'profile', name: 'Disk' } }]);
+    const c = await diskEditor();
+    expect(c.letterUnavailable('C:')).toBe(true);
+    expect(c.letterUnavailable('Z:')).toBe(false);
+    c.draft.destination = 'Y:';
+    c.draft.networkDrive = true;
+    c.draft.readOnly = true;
+    await c.save();
+    expect(save).toHaveBeenCalledWith(
+      'NAS',
+      expect.objectContaining({
+        mountConfigs: {
+          Disk: expect.objectContaining({
+            app: expect.objectContaining({ autoStart: true }),
+            rclone: expect.objectContaining({
+              mountPoint: 'Y:',
+              mountOpt: { NetworkMode: true },
+              vfsOpt: { ReadOnly: true },
+            }),
+          }),
+        },
+      })
+    );
+    expect(stopJob).not.toHaveBeenCalled();
+    expect(startJob).not.toHaveBeenCalled();
+    expect(startProfileBatch).not.toHaveBeenCalled();
+  });
+  it('blocks an occupied drive, a configured collision and an unavailable inventory without saving', async () => {
+    const c = await diskEditor();
+    c.draft.destination = 'C:';
+    await c.save();
+    expect(c.error()).toBe('simple.errors.drive');
+    c.draft.destination = 'Y:';
+    collision.mockReturnValue([{}]);
+    await c.save();
+    expect(c.error()).toBe('simple.errors.driveCollision');
+    collision.mockReturnValue([]);
+    localDrives.mockRejectedValue(new Error('offline'));
+    await c.loadDrives();
+    await c.save();
+    expect(c.error()).toBe('simple.errors.drive');
+    expect(save).not.toHaveBeenCalled();
+    expect(stopJob).not.toHaveBeenCalled();
+  });
+  it('blocks a drive used by another live mount even when absent from OS inventory', async () => {
+    mounted.set([{ fs: 'Other:', mount_point: 'Y:' }]);
+    const c = await diskEditor();
+    c.draft.destination = 'Y:';
+    await c.save();
+    expect(c.error()).toBe('simple.errors.driveCollision');
+    expect(save).not.toHaveBeenCalled();
+  });
   async function historyFixture(): Promise<SimpleHistoryComponent> {
     TestBed.overrideComponent(SimpleHistoryComponent, { set: { template: '', imports: [] } });
     const fixture = TestBed.createComponent(SimpleHistoryComponent);

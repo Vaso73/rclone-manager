@@ -364,15 +364,12 @@
           } @else if (simpleSetup() && remoteType === 'drive' && item.Name === 'scope') {
             <mat-form-field>
               <mat-label>{{ 'simple.cloud.access' | translate }}</mat-label>
-              <mat-select formControlName="scope">
+              <mat-select formControlName="scope" [compareWith]="sameDriveScope">
                 <mat-option value="drive">{{ 'simple.cloud.readWrite' | translate }}</mat-option>
                 <mat-option value="drive.readonly">{{
                   'simple.cloud.readOnly' | translate
                 }}</mat-option>
-                @if (
-                  form().get('scope')?.value !== 'drive' &&
-                  form().get('scope')?.value !== 'drive.readonly'
-                ) {
+                @if (!simpleDriveScope(form().get('scope')?.value)) {
                   <mat-option [value]="form().get('scope')?.value">{{
                     'simple.cloud.existing' | translate
                   }}</mat-option>

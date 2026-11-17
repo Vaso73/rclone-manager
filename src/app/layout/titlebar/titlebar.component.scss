@@ -12,6 +12,8 @@
 
 .left-section {
   display: flex;
+  align-items: center;
+  min-width: 0;
   gap: var(--space-xs);
 }
 

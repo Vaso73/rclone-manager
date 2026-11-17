@@ -11,7 +11,10 @@
       <mat-icon svgIcon="refresh"></mat-icon>
     </button>
   </div>
-  <p>{{ 'simple.history.help' | translate }}</p>
+  <details>
+    <summary>{{ 'simple.tasks.explanation' | translate }}</summary>
+    <p>{{ 'simple.history.help' | translate }}</p>
+  </details>
   <p class="truncate" [title]="task().history">{{ task().history }}</p>
   @if (path()) {
     <button matButton (click)="up()" [disabled]="busy()">
@@ -30,7 +33,10 @@
       <mat-icon [svgIcon]="entry.IsDir ? 'folder' : 'file'"></mat-icon>
       <span class="truncate" [title]="entry.Name">{{ entry.Name }}</span>
       @if (!entry.IsDir) {
-        <span>{{ entry.Size | number }} B · {{ entry.ModTime | date: 'short' }}</span>
+        <span
+          >{{ entry.Size | number }} B ·
+          {{ entry.ModTime | date: ('simple.dateFormat' | translate) }}</span
+        >
       }
       <button matButton (click)="entry.IsDir ? open(entry) : restore(entry)" [disabled]="busy()">
         {{ (entry.IsDir ? 'simple.history.open' : 'simple.history.restore') | translate }}

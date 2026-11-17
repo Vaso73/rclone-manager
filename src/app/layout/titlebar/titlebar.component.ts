@@ -22,6 +22,7 @@ import { MainUiOverlayService } from 'src/app/services/ui/main-ui-overlay.servic
 import { FlowOverlayService } from 'src/app/services/ui/flow-overlay.service';
 import { isMobile } from 'src/app/services/infrastructure/platform/api-client.service';
 import { WindowControlsComponent } from 'src/app/shared/components/window-controls/window-controls.component';
+import { InterfaceModeSwitchComponent } from '../../simple/interface-mode-switch.component';
 import { AppMenuComponent } from 'src/app/shared/components/app-menu/app-menu.component';
 
 @Component({
@@ -34,6 +35,7 @@ import { AppMenuComponent } from 'src/app/shared/components/app-menu/app-menu.co
     TranslatePipe,
     WindowControlsComponent,
     AppMenuComponent,
+    InterfaceModeSwitchComponent,
   ],
   templateUrl: './titlebar.component.html',
   styleUrls: ['./titlebar.component.scss'],

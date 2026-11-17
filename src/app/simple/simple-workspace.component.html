@@ -17,12 +17,9 @@
           </button>
         }
       </nav>
-      <p>{{ 'simple.optionalMount' | translate }}</p>
-      <button matButton (click)="mode.setMode('advanced')" [disabled]="mode.saving()">
-        <mat-icon svgIcon="gear"></mat-icon>{{ 'simple.mode.advanced' | translate }}
-      </button>
+      <p class="sidebar-help">{{ 'simple.optionalMount' | translate }}</p>
     </aside>
-    <main>
+    <main [class.editing]="!!validEditor()">
       <header>
         <div>
           <h1>{{ 'simple.nav.' + page() | translate }}</h1>
@@ -30,7 +27,7 @@
         </div>
       </header>
       @if (validEditor(); as editor) {
-        <mat-card
+        <mat-card class="editor-card"
           ><mat-card-content
             ><app-simple-task-editor
               [remote]="editor.remote"
@@ -47,23 +44,26 @@
         @if (facade.loading()) {
           <p role="status">{{ 'simple.loading' | translate }}</p>
         }
-        <div class="connection-grid">
+        <div class="connection-list">
           @for (remote of facade.remoteSummaries(); track remote.name) {
-            <mat-card [attr.data-selected]="selected() === remote.name">
-              <mat-card-header
-                ><mat-icon mat-card-avatar svgIcon="cloud"></mat-icon
-                ><mat-card-title>{{ remote.name }}</mat-card-title
-                ><mat-card-subtitle>{{ remote.type }}</mat-card-subtitle></mat-card-header
-              >
+            <mat-card class="connection-row" [attr.data-selected]="selected() === remote.name">
+              <div class="connection-identity">
+                <mat-icon [svgIcon]="icons.getIconName(remote.type)"></mat-icon>
+                <div>
+                  <strong class="truncate" [title]="remote.name">{{ remote.name }}</strong>
+                  <span>{{ remote.type }}</span>
+                </div>
+              </div>
               <mat-card-actions>
-                <button matButton (click)="selected.set(remote.name); navigate('drives')">
-                  {{ 'simple.connections.next' | translate }}
+                <button matButton (click)="editDisk(remote.name)">
+                  <mat-icon svgIcon="hard-drive"></mat-icon
+                  >{{ 'simple.connections.diskSettings' | translate }}
                 </button>
                 <button matButton (click)="selected.set(remote.name); browse()">
                   {{ 'simple.connections.browse' | translate }}
                 </button>
                 <button matButton (click)="selected.set(remote.name); editConnection()">
-                  {{ 'simple.connections.edit' | translate }}
+                  {{ 'simple.connections.accountSettings' | translate }}
                 </button>
               </mat-card-actions>
             </mat-card>
@@ -114,7 +114,7 @@
             <div class="card-row-item">
               <span>{{ job.remote_name }}</span
               ><span>{{ 'simple.status.' + job.status | translate }}</span
-              ><span>{{ job.start_time | date: 'short' }}</span
+              ><span>{{ job.start_time | date: ('simple.dateFormat' | translate) }}</span
               ><button matButton (click)="details(job)">
                 {{ 'simple.tasks.result' | translate }}
               </button>
@@ -166,7 +166,15 @@
                 }}</mat-card-subtitle></mat-card-header
               >
               <mat-card-content>
-                <p>{{ 'simple.operationHelp.' + task.operation | translate }}</p>
+                @if (!ready(task)) {
+                  <span appPill tone="orange" size="sm">{{
+                    'simple.tasks.needsSetup' | translate
+                  }}</span>
+                }
+                <details>
+                  <summary>{{ 'simple.tasks.explanation' | translate }}</summary>
+                  <p>{{ 'simple.operationHelp.' + task.operation | translate }}</p>
+                </details>
                 <div class="task-path">
                   <span>{{ 'simple.tasks.source' | translate }}</span
                   ><strong class="truncate" [title]="task.source">{{ task.source }}</strong>
@@ -174,20 +182,40 @@
                 @if (task.destination) {
                   <div class="task-path">
                     <span>{{ 'simple.tasks.destination' | translate }}</span
-                    ><strong class="truncate" [title]="task.destination">{{
-                      task.destination
-                    }}</strong>
+                    ><strong
+                      class="truncate"
+                      [title]="mount(task)?.mount_point || task.destination"
+                      >{{ mount(task)?.mount_point || task.destination }}</strong
+                    >
                   </div>
                 }
                 @if (task.history) {
-                  <p>{{ 'simple.history.enabled' | translate }}</p>
+                  <span appPill size="xs" tone="dim">{{
+                    'simple.history.activeLabel' | translate
+                  }}</span>
                 }
                 @if ((task.operation === 'mount' || task.operation === 'serve') && active(task)) {
                   <span appPill tone="primary" size="sm">{{
                     'simple.status.Connected' | translate
                   }}</span>
                 }
-                @if (latest(task); as job) {
+                @if (task.operation === 'mount') {
+                  <div class="drive-state">
+                    <span>{{
+                      (mountOptions(task).networkDrive
+                        ? 'simple.drives.network'
+                        : 'simple.drives.local'
+                      ) | translate
+                    }}</span>
+                    @if (mountOptions(task).readOnly) {
+                      <span>{{ 'simple.drives.readOnly' | translate }}</span>
+                    }
+                    @if (active(task)) {
+                      <span>{{ 'simple.drives.nextConnection' | translate }}</span>
+                    }
+                  </div>
+                }
+                @if (task.operation !== 'mount' && latest(task); as job) {
                   <div class="card-row-item">
                     <span
                       appPill
@@ -209,7 +237,7 @@
                     <span
                       >{{ job.stats.bytes | number }} B · {{ job.stats.errors | number }}
                       {{ 'simple.tasks.errors' | translate }}</span
-                    ><span>{{ job.start_time | date: 'short' }}</span
+                    ><span>{{ job.start_time | date: ('simple.dateFormat' | translate) }}</span
                     ><button matButton (click)="details(job)">
                       {{ 'simple.tasks.result' | translate }}
                     </button>
@@ -225,7 +253,7 @@
                   <button
                     matButton
                     (click)="run(task, true)"
-                    [disabled]="pending() || active(task)"
+                    [disabled]="pending() || active(task) || !ready(task)"
                   >
                     <mat-icon svgIcon="eye"></mat-icon>{{ 'simple.tasks.preview' | translate }}
                   </button>
@@ -233,7 +261,7 @@
                 <button
                   matButton="filled"
                   (click)="run(task, false)"
-                  [disabled]="pending() || active(task)"
+                  [disabled]="pending() || active(task) || !ready(task)"
                 >
                   <mat-icon svgIcon="play"></mat-icon
                   >{{
@@ -246,7 +274,11 @@
                     {{ 'simple.tasks.stop' | translate }}
                   </button>
                 }
-                <button matButton (click)="edit(task)" [disabled]="pending() || active(task)">
+                <button
+                  matButton
+                  (click)="edit(task)"
+                  [disabled]="pending() || (task.operation !== 'mount' && active(task))"
+                >
                   {{ 'simple.tasks.edit' | translate }}
                 </button>
               </mat-card-actions>

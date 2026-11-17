@@ -74,3 +74,19 @@ main {
     padding: var(--space-md) !important;
   }
 }
+
+main.simple-setup {
+  flex: 0 1 auto;
+  min-height: 0;
+  .modal-sidenav-container {
+    height: auto;
+    min-height: 0;
+  }
+  .modal-content {
+    max-height: 65dvh;
+  }
+  .step-container:not(.interactive),
+  .step-container:not(.interactive) .step {
+    flex: 0 0 auto;
+  }
+}

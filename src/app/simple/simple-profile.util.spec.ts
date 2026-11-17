@@ -9,6 +9,7 @@ import {
   simpleSchedule,
   splitSimplePath,
   simpleMountOptions,
+  patchSimpleMountVfs,
 } from './simple-profile.util';
 
 const draft = (changes: Partial<SimpleTaskDraft> = {}): SimpleTaskDraft => ({
@@ -202,4 +203,57 @@ describe('history names', () => {
     'allows ordinary names %s',
     name => expect(safeHistoryName(name)).toBe(true)
   );
+});
+
+describe('shared VFS settings in simple disk editing', () => {
+  it('inherits default permissions for a new disk and writes canonical mount options', () => {
+    const settings = { vfsConfigs: { Default: { ReadOnly: true, CacheMode: 'full' } } };
+    expect(simpleMountOptions(undefined, settings)).toEqual({ networkDrive: true, readOnly: true });
+    const d = draft({ operation: 'mount', source: 'NAS:', destination: 'Z:', readOnly: false });
+    const profile = patchSimpleProfile(undefined, d, settings);
+    expect(profile.rclone?.['mountOpt']).toEqual({ NetworkMode: true });
+    expect(profile.rclone?.['vfsOpt']).toEqual({ ReadOnly: false });
+    const update = patchSimpleMountVfs(settings, undefined, d, profile);
+    expect(update.vfsConfigs?.['Backup (disk)']['ReadOnly']).toBe(false);
+    expect(settings.vfsConfigs.Default.ReadOnly).toBe(true);
+  });
+
+  it('reads effective inherited permissions and preserves the shared profile on an unchanged save', () => {
+    const settings = { vfsConfigs: { Default: { ReadOnly: true, CacheMode: 'full' } } };
+    const existing = {
+      app: { vfsProfile: DEFAULT_PROFILE_NAME },
+      rclone: { fs: 'NAS:', mountPoint: 'Z:' },
+    };
+    expect(simpleMountOptions(existing, settings).readOnly).toBe(true);
+    const d = draft({
+      operation: 'mount',
+      source: 'NAS:',
+      destination: 'Z:',
+      readOnly: true,
+      networkDrive: false,
+    });
+    const profile = patchSimpleProfile(existing, d);
+    expect(patchSimpleMountVfs(settings, existing, d, profile)).toEqual({});
+    expect(profile.app?.vfsProfile).toBe(DEFAULT_PROFILE_NAME);
+  });
+  it('isolates a deliberate permission change and never overwrites another profile', () => {
+    const settings = {
+      vfsConfigs: {
+        Default: { ReadOnly: true, CacheMode: 'full' },
+        'Backup (disk)': { CacheMode: 'off' },
+      },
+    };
+    const before = structuredClone(settings);
+    const existing = {
+      app: { vfsProfile: DEFAULT_PROFILE_NAME },
+      rclone: { fs: 'NAS:', mountPoint: 'Z:' },
+    };
+    const d = draft({ operation: 'mount', readOnly: false, networkDrive: false });
+    const profile = patchSimpleProfile(existing, d);
+    const result = patchSimpleMountVfs(settings, existing, d, profile);
+    expect(settings).toEqual(before);
+    expect(profile.app?.vfsProfile).toBe('Backup (disk) 2');
+    expect(result.vfsConfigs?.['Backup (disk) 2']).toEqual({ ReadOnly: false, CacheMode: 'full' });
+    expect(result.vfsConfigs?.[DEFAULT_PROFILE_NAME]['ReadOnly']).toBe(true);
+  });
 });

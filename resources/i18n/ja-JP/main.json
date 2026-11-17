@@ -4694,7 +4694,8 @@
       "label": "Interface mode",
       "help": "Simple guides everyday setup. Advanced keeps every option.",
       "simple": "Simple mode",
-      "advanced": "Advanced mode"
+      "advanced": "Advanced mode",
+      "switch": "Switch simple / advanced mode"
     },
     "navigation": "Setup and tasks",
     "loading": "Loading…",
@@ -4718,7 +4719,9 @@
       "browse": "Browse files",
       "edit": "Edit connection",
       "empty": "No connections yet. Add your first storage.",
-      "first": "First add or choose a connection."
+      "first": "First add or choose a connection.",
+      "diskSettings": "Disk settings",
+      "accountSettings": "Account settings"
     },
     "drives": {
       "add": "Connect a disk",
@@ -4727,8 +4730,18 @@
       "empty": "No disks configured for this connection. You can go straight to Tasks.",
       "mountPoint": "Drive letter or mount folder",
       "pathHelp": "On Windows, enter an unused drive such as X:. On Linux or macOS, use a mount folder. Mounting needs WinFsp (Windows) or FUSE (Linux/macOS).",
-      "network": "Show as a network disk (Windows)",
-      "readOnly": "Read only"
+      "network": "Network disk",
+      "readOnly": "Read only",
+      "nextConnection": "Shown type and options apply on the next connection.",
+      "saveConnected": "Disk {{path}} stays connected. Changes apply after disconnecting and connecting again.",
+      "location": "Mount as",
+      "letter": "Drive letter",
+      "folder": "Folder",
+      "type": "Disk type",
+      "local": "Local disk",
+      "inUse": "in use",
+      "unavailable": "Could not check existing drives. Refresh the list before saving.",
+      "pathHelpTitle": "Choosing a mount location"
     },
     "tasks": {
       "add": "Create a task",
@@ -4755,7 +4768,10 @@
       "vssHelp": "VSS reads a consistent point in time. Unsaved edits inside apps are not included.",
       "enableVss": "Enable snapshots (Windows confirmation)",
       "preserved": "Filters and other advanced settings are preserved. Saving does not run the task.",
-      "complex": "This task has multiple sources. Edit it in Advanced mode to preserve all paths."
+      "complex": "This task has multiple sources. Edit it in Advanced mode to preserve all paths.",
+      "needsSetup": "Needs setup",
+      "explanation": "What this task does",
+      "preservedTitle": "Other saved settings"
     },
     "operations": {
       "sync": "Mirror",
@@ -4798,7 +4814,8 @@
       "empty": "No archived versions in this folder.",
       "noTasks": "No tasks with a history folder yet.",
       "runs": "Recent runs and restores",
-      "noRuns": "No runs recorded yet."
+      "noRuns": "No runs recorded yet.",
+      "activeLabel": "History enabled"
     },
     "status": {
       "Running": "Running",
@@ -4814,7 +4831,9 @@
       "duplicate": "A task with this name already exists for this action.",
       "scope": "The active server or connection changed. Open the task again.",
       "save": "The task could not be saved. Check the connection and try again.",
-      "vssSource": "Windows snapshots require a local source folder. Choose a local source or turn snapshots off."
+      "vssSource": "Windows snapshots require a local source folder. Choose a local source or turn snapshots off.",
+      "drive": "Choose an available drive letter and wait for the drive check.",
+      "driveCollision": "Another disk or profile uses this location. Choose another one."
     },
     "sftp": {
       "host": "Server address",
@@ -4831,6 +4850,7 @@
       "readWrite": "Read and write",
       "readOnly": "Read only",
       "existing": "Existing advanced permissions"
-    }
+    },
+    "dateFormat": "yyyy-MM-dd HH:mm"
   }
 }
