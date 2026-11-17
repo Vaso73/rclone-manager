@@ -25,6 +25,10 @@ export class SimpleReorderDirective {
     pointer: number;
     x: number;
     y: number;
+    offsetX: number;
+    offsetY: number;
+    width: number;
+    height: number;
     from: string;
     group: string;
     list: HTMLElement;
@@ -44,10 +48,15 @@ export class SimpleReorderDirective {
     const source = this.element.nativeElement.closest<HTMLElement>('[data-order-key]');
     const list = source?.closest<HTMLElement>('[data-order-group]');
     if (!source || !list) return;
+    const rect = source.getBoundingClientRect();
     this.drag = {
       pointer: event.pointerId,
       x: event.clientX,
       y: event.clientY,
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+      width: rect.width,
+      height: rect.height,
       from: this.appSimpleReorder(),
       group: list.dataset['orderGroup'] ?? '',
       list,
@@ -75,11 +84,23 @@ export class SimpleReorderDirective {
       ghost.inert = true;
       ghost.setAttribute('aria-hidden', 'true');
       ghost.classList.add('simple-order-ghost');
-      ghost.style.width = Math.min(drag.source.getBoundingClientRect().width, 360) + 'px';
+      // Material card styles are injected later and otherwise replace fixed with relative.
+      ghost.style.position = 'fixed';
+      ghost.style.width = drag.width + 'px';
+      ghost.style.height = drag.height + 'px';
+      ghost.style.font = this.document.defaultView?.getComputedStyle(drag.source).font ?? '';
+      drag.source.setAttribute('data-order-source', 'true');
+      this.document.documentElement.setAttribute('data-simple-order-dragging', 'true');
       this.document.body.appendChild(ghost);
       drag.ghost = ghost;
     }
-    drag.ghost.style.transform = `translate(${event.clientX + 12}px, ${event.clientY + 12}px)`;
+    const viewport = this.document.documentElement;
+    const width = viewport.clientWidth || this.document.defaultView?.innerWidth || drag.width;
+    const height = viewport.clientHeight || this.document.defaultView?.innerHeight || drag.height;
+    // Keep the grabbed point under the pointer; clamp at viewport edges without shrinking.
+    const left = Math.max(0, Math.min(event.clientX - drag.offsetX, width - drag.width));
+    const top = Math.max(0, Math.min(event.clientY - drag.offsetY, height - drag.height));
+    drag.ghost.style.transform = `translate(${left}px, ${top}px)`;
     drag.target?.removeAttribute('data-order-target');
     const target =
       this.document
@@ -106,11 +127,14 @@ export class SimpleReorderDirective {
   @HostListener('lostpointercapture')
   @HostListener('document:pointercancel')
   @HostListener('window:blur')
+  @HostListener('window:resize')
   cancel(): void {
     const drag = this.drag;
     this.drag = null;
     drag?.target?.removeAttribute('data-order-target');
     drag?.ghost?.remove();
+    drag?.source.removeAttribute('data-order-source');
+    if (drag?.ghost) this.document.documentElement.removeAttribute('data-simple-order-dragging');
     if (drag && this.element.nativeElement.hasPointerCapture?.(drag.pointer))
       this.element.nativeElement.releasePointerCapture(drag.pointer);
   }

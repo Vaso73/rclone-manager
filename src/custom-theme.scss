@@ -1707,18 +1707,22 @@ mat-accordion:not(.dull) {
 }
 
 // Pointer reorder previews live outside their source component and never receive input.
-.simple-order-ghost {
+body > .simple-order-ghost {
   position: fixed;
   inset: 0 auto auto 0;
   z-index: 10000;
   pointer-events: none;
-  opacity: 0.75;
-  padding: var(--space-sm);
-  border-radius: var(--radius-sm);
-  border: thin solid var(--border-color);
-  box-shadow: var(--box-shadow);
-  background: var(--card-bg-color);
-  color: var(--window-fg-color);
-  max-height: 12rem;
-  overflow: hidden;
+  box-sizing: border-box;
+  margin: 0;
+  opacity: 0.96;
+  border-color: var(--primary-color);
+  box-shadow: var(--shadow-popover);
+  transition: none;
+}
+[data-order-source="true"] {
+  opacity: 0.28;
+}
+html[data-simple-order-dragging="true"],
+html[data-simple-order-dragging="true"] * {
+  cursor: grabbing !important;
 }
