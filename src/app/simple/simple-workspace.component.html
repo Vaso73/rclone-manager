@@ -76,6 +76,139 @@
             }
           }
         </div>
+      } @else if (page() === 'drives') {
+        @if (facade.remoteSummaries().length) {
+          <div class="page-actions">
+            <button
+              matButton="filled"
+              data-tone="primary"
+              [cdkMenuTriggerFor]="addDiskMenu"
+              [disabled]="pending() || facade.loading()"
+            >
+              <mat-icon svgIcon="plus"></mat-icon>{{ 'simple.drives.add' | translate }}
+            </button>
+          </div>
+          <ng-template #addDiskMenu>
+            <div
+              class="material-context-menu"
+              cdkMenu
+              [attr.aria-label]="'simple.drives.chooseConnection' | translate"
+            >
+              @for (remote of facade.remoteSummaries(); track remote.name) {
+                <button class="menu-item" cdkMenuItem (cdkMenuItemTriggered)="addDisk(remote.name)">
+                  <mat-icon [svgIcon]="icons.getIconName(remote.type)"></mat-icon>{{ remote.name }}
+                </button>
+              }
+            </div>
+          </ng-template>
+          @if (facade.loading()) {
+            <p role="status">{{ 'simple.loading' | translate }}</p>
+          }
+          <div class="connection-list">
+            @for (task of driveTasks(); track task.remote + task.operation + task.name) {
+              @let activeDisk = mount(task);
+              @let options = mountOptions(task);
+              <mat-card class="connection-row drive-row" [attr.aria-label]="driveLabel(task)">
+                <div class="connection-identity">
+                  <mat-icon [svgIcon]="driveIcon(task)"></mat-icon>
+                  <div>
+                    <div class="drive-heading">
+                      <strong class="truncate" [title]="task.remote + ' / ' + task.name">{{
+                        driveLabel(task)
+                      }}</strong>
+                      <span
+                        appPill
+                        [tone]="activeDisk && !mounts.refreshing() ? 'primary' : 'dim'"
+                        size="xs"
+                        >{{
+                          (mounts.refreshing()
+                            ? 'simple.drives.refreshing'
+                            : activeDisk
+                              ? 'simple.status.Connected'
+                              : 'simple.drives.disconnected'
+                          ) | translate
+                        }}</span
+                      >
+                      @if (!ready(task)) {
+                        <span appPill tone="orange" size="xs">{{
+                          'simple.tasks.needsSetup' | translate
+                        }}</span>
+                      }
+                    </div>
+                    @if (driveLabel(task) !== task.remote || task.source !== task.remote + ':') {
+                      <span class="truncate" [title]="task.source">{{ task.source }}</span>
+                    }
+                    <app-simple-disk-state
+                      [compact]="true"
+                      [active]="activeDisk"
+                      [refreshing]="mounts.refreshing()"
+                      [source]="task.source"
+                      [destination]="task.destination"
+                      [networkDrive]="options.networkDrive"
+                      [readOnly]="options.readOnly"
+                      [volumeName]="volumeName(task.config)"
+                    ></app-simple-disk-state>
+                  </div>
+                </div>
+                <mat-card-actions>
+                  @if (activeDisk) {
+                    <button
+                      matButton
+                      (click)="stop(task)"
+                      [disabled]="pending() || mounts.refreshing()"
+                    >
+                      {{ 'simple.drives.disconnect' | translate }}
+                    </button>
+                    <button
+                      matButton
+                      (click)="openDisk(task)"
+                      [disabled]="pending() || mounts.refreshing()"
+                    >
+                      <mat-icon svgIcon="folder-open"></mat-icon
+                      >{{ 'simple.drives.open' | translate }}
+                    </button>
+                  } @else {
+                    <button
+                      matButton
+                      (click)="run(task, false)"
+                      [disabled]="pending() || !ready(task) || mounts.refreshing()"
+                    >
+                      <mat-icon svgIcon="play"></mat-icon>{{ 'simple.drives.connect' | translate }}
+                    </button>
+                  }
+                  <button matButton (click)="edit(task)" [disabled]="pending()">
+                    <mat-icon svgIcon="settings"></mat-icon
+                    >{{ 'simple.drives.settings' | translate }}
+                  </button>
+                </mat-card-actions>
+              </mat-card>
+            } @empty {
+              @if (!facade.loading()) {
+                <div class="empty-state">
+                  <mat-icon svgIcon="hard-drive"></mat-icon>
+                  <p>{{ 'simple.drives.empty' | translate }}</p>
+                </div>
+              }
+            }
+          </div>
+          <details>
+            <summary>{{ 'simple.drives.explanation' | translate }}</summary>
+            <p>{{ 'simple.operationHelp.mount' | translate }}</p>
+          </details>
+          <button matButton (click)="navigate('tasks')">
+            {{ 'simple.drives.skip' | translate }}
+          </button>
+        } @else if (!facade.loading()) {
+          <div class="empty-state">
+            <mat-icon svgIcon="cloud"></mat-icon>
+            <p>{{ 'simple.connections.first' | translate }}</p>
+            <button matButton="filled" (click)="navigate('connections')">
+              {{ 'simple.nav.connections' | translate }}
+            </button>
+          </div>
+        } @else {
+          <p role="status">{{ 'simple.loading' | translate }}</p>
+        }
       } @else if (page() === 'history') {
         @if (validHistory(); as task) {
           <button matButton (click)="history.set(null)">
@@ -303,7 +436,11 @@
                   }}
                 </button>
                 @if (active(task)) {
-                  <button matButton (click)="stop(task)" [disabled]="pending()">
+                  <button
+                    matButton
+                    (click)="stop(task)"
+                    [disabled]="pending() || mounts.refreshing()"
+                  >
                     {{
                       (task.operation === 'mount'
                         ? 'simple.drives.disconnect'

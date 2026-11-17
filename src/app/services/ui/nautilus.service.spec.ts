@@ -176,3 +176,64 @@ describe('Nautilus picker disposal', () => {
     expect(context.navigationHistory.openLayer).not.toHaveBeenCalled();
   });
 });
+
+describe('Nautilus remote bootstrap request coalescing', () => {
+  it('shares a running discovery instead of waiting for a second drive scan', async () => {
+    let finish!: () => void;
+    const drives = vi.fn(
+      () =>
+        new Promise<never[]>(resolve => {
+          finish = (): void => resolve([]);
+        })
+    );
+    const configs = vi.fn().mockResolvedValue({ Drive: { type: 'drive' } });
+    const context = {
+      vault: { isAccessible: (): boolean => true },
+      remoteManagement: { getAllRemoteConfigs: configs, getLocalDrives: drives },
+      _cloudRemotes: signal([]),
+      _localDrives: signal([]),
+      loadRemoteData: NautilusService.prototype.loadRemoteData,
+    };
+    const service = context as unknown as NautilusService;
+    const first = service.loadRemoteData();
+    const browse = service.loadRemoteData();
+    const picker = service.loadRemoteData();
+    finish();
+    await Promise.all([first, browse, picker]);
+    expect(configs).toHaveBeenCalledTimes(1);
+    expect(drives).toHaveBeenCalledTimes(1);
+  });
+  it('still reloads once after a real settings/backend change during discovery', async () => {
+    let finish!: () => void;
+    const drives = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<never[]>(resolve => {
+            finish = (): void => resolve([]);
+          })
+      )
+      .mockResolvedValue([]);
+    const configs = vi
+      .fn()
+      .mockResolvedValueOnce({ Old: { type: 'sftp' } })
+      .mockResolvedValue({ New: { type: 'drive' } });
+    const cloud = signal<unknown[]>([]);
+    const context = {
+      vault: { isAccessible: (): boolean => true },
+      remoteManagement: { getAllRemoteConfigs: configs, getLocalDrives: drives },
+      _cloudRemotes: cloud,
+      _localDrives: signal([]),
+      loadRemoteData: NautilusService.prototype.loadRemoteData,
+    };
+    const service = context as unknown as NautilusService;
+    const first = service.loadRemoteData();
+    const changed = service.loadRemoteData(true);
+    const repeated = service.loadRemoteData(true);
+    finish();
+    await Promise.all([first, changed, repeated]);
+    expect(configs).toHaveBeenCalledTimes(2);
+    expect(drives).toHaveBeenCalledTimes(2);
+    expect(cloud()).toMatchObject([{ name: 'New' }]);
+  });
+});

@@ -10,6 +10,7 @@ import { DatePipe, DecimalPipe } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
+import { CdkMenuModule } from '@angular/cdk/menu';
 import { MatCardModule } from '@angular/material/card';
 import { TranslatePipe, TranslateService } from '@ngx-translate/core';
 import {
@@ -25,10 +26,12 @@ import { WorkspaceShellComponent } from '../layout/workspace-shell/workspace-she
 import { TitlebarComponent } from '../layout/titlebar/titlebar.component';
 import { BannerComponent } from '../layout/banners/banner.component';
 import { RemoteFacadeService } from '../services/facade/remote-facade.service';
+import { isHeadlessMode } from '../services/infrastructure/platform/api-client.service';
 import { BackendService } from '../services/infrastructure/system/backend.service';
 import { JobManagementService } from '../services/operations/job-management.service';
 import { ModalService } from '../services/ui/modal.service';
 import { NotificationService } from '../services/ui/notification.service';
+import { MountManagementService } from '../services/operations/mount-management.service';
 import { NautilusService } from '../services/ui/nautilus.service';
 import { PillDirective } from '../shared/directives/pill.directive';
 import { IconService } from '../services/ui/icon.service';
@@ -40,6 +43,8 @@ import {
   simpleMountOptions,
   simpleTaskTemplate,
   simpleVolumeName,
+  splitSimplePath,
+  simpleDiskLabel,
 } from './simple-profile.util';
 import { SimpleTaskEditorComponent } from './simple-task-editor.component';
 import { SimpleDiskStateComponent } from './simple-disk-state.component';
@@ -55,6 +60,7 @@ type SimplePage = 'connections' | 'drives' | 'tasks' | 'history';
     MatButtonModule,
     MatIcon,
     MatCardModule,
+    CdkMenuModule,
     TranslatePipe,
     PillDirective,
     SimpleTaskEditorComponent,
@@ -89,6 +95,7 @@ export class SimpleWorkspaceComponent {
     return simpleMountOptions(task.config, this.facade.getRemoteSettings(task.remote));
   }
   readonly backend = inject(BackendService);
+  readonly mounts = inject(MountManagementService);
   private readonly jobs = inject(JobManagementService);
   private readonly modal = inject(ModalService);
   private readonly notifications = inject(NotificationService);
@@ -116,6 +123,7 @@ export class SimpleWorkspaceComponent {
       .remoteSummaries()
       .flatMap(remote => listSimpleTasks(remote.name, this.facade.getRemoteSettings(remote.name)))
   );
+  readonly driveTasks = computed(() => this.allTasks().filter(task => task.operation === 'mount'));
   readonly matchingTasks = computed(() =>
     this.allTasks().filter(
       task =>
@@ -217,16 +225,51 @@ export class SimpleWorkspaceComponent {
   editDisk(remote: string): void {
     this.selected.set(remote);
     this.navigate('drives');
-    const mounts = this.visibleTasks();
+    const mounts = this.driveTasks().filter(task => task.remote === remote);
     if (mounts.length <= 1) this.edit(mounts[0]);
+  }
+  addDisk(remote: string): void {
+    if (this.pending() || !this.facade.isRemoteActive(remote)) return;
+    this.selected.set(remote);
+    this.edit();
+  }
+  driveLabel = simpleDiskLabel;
+  driveIcon(task: SimpleTask): string {
+    const type = this.facade.remoteSummaries().find(remote => remote.name === task.remote)?.type;
+    return this.icons.getIconName(type || 'hard-drive');
+  }
+  async openDisk(task: SimpleTask): Promise<void> {
+    if (
+      this.pending() ||
+      this.mounts.refreshing() ||
+      task.operation !== 'mount' ||
+      !this.facade.isRemoteActive(task.remote)
+    )
+      return;
+    const active = this.mount(task);
+    if (!active) return;
+    try {
+      if (this.backend.isLocalBackend() && !isHeadlessMode()) {
+        const point = /^[a-z]:$/i.test(active.mount_point)
+          ? active.mount_point + '\\'
+          : active.mount_point;
+        await this.facade.openRemoteInFiles(task.remote, point, task.name, 'mount');
+      } else {
+        const path = splitSimplePath(active.settings?.source ?? active.fs);
+        await this.browser.openBrowserOverlay(path.remote || task.remote, path.path);
+      }
+    } catch (error) {
+      this.notifications.showError(error);
+    }
   }
   mount(task: SimpleTask): MountedRemote | undefined {
     return simpleTaskMount(task, this.facade.mountedRemotes());
   }
   edit(task?: SimpleTask): void {
-    if (this.selected())
+    const remote = task?.remote ?? this.selected();
+    if (remote)
       this.editor.set({
-        remote: this.selected(),
+        remote,
         task,
         mount: this.page() === 'drives',
         backend: this.backend.activeBackend(),

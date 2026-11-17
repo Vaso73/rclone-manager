@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_PROFILE_NAME, ProfileConfig } from '@app/types';
 import {
   SimpleTaskDraft,
+  simpleDiskLabel,
   listSimpleTasks,
   simpleTaskTemplate,
   simpleVolumeName,
@@ -374,5 +375,33 @@ describe('stable disk labels and template presentation', () => {
         config: { ...task.config, rclone: { srcFs: 'NAS:', dry_run: true } },
       })
     ).toBe(false);
+  });
+});
+
+describe('disk display labels with stable legacy profile keys', () => {
+  it.each(['Default', 'default'])(
+    'uses the owner for an unnamed %s disk without changing configuration',
+    name => {
+      const settings = { mountConfigs: { [name]: { rclone: { fs: 'NAS:', mountPoint: 'Z:' } } } };
+      const original = structuredClone(settings);
+      const task = listSimpleTasks('NAS', settings)[0];
+      expect(simpleDiskLabel(task)).toBe('NAS');
+      expect(task.name).toBe(name);
+      expect(settings).toEqual(original);
+    }
+  );
+  it('recognizes repeated legacy Default labels while preserving custom names', () => {
+    expect(
+      simpleDiskLabel(
+        listSimpleTasks('NAS', {
+          mountConfigs: { Default: { app: { displayName: 'Default' }, rclone: { fs: 'NAS:' } } },
+        })[0]
+      )
+    ).toBe('NAS');
+    expect(
+      simpleDiskLabel(
+        listSimpleTasks('NAS', { mountConfigs: { Photos: { rclone: { fs: 'NAS:photos' } } } })[0]
+      )
+    ).toBe('Photos');
   });
 });

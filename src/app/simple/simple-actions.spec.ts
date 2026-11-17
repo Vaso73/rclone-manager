@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { TranslateService } from '@ngx-translate/core';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { RemoteFacadeService } from '../services/facade/remote-facade.service';
 import { BackendService } from '../services/infrastructure/system/backend.service';
 import { JobManagementService } from '../services/operations/job-management.service';
@@ -63,6 +63,7 @@ describe('simple workspace actions', () => {
   const refreshMounts = vi.fn();
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.stubGlobal('__TAURI_INTERNALS__', {});
     activeBackend.set('Local');
     mounted.set([]);
     reconnect.mockResolvedValue(undefined);
@@ -93,7 +94,14 @@ describe('simple workspace actions', () => {
         },
         { provide: RemoteManagementService, useValue: { getLocalDrives: localDrives } },
         { provide: IconService, useValue: { getIconName: (): string => 'cloud' } },
-        { provide: BackendService, useValue: { activeBackend, isWindows: (): boolean => true } },
+        {
+          provide: BackendService,
+          useValue: {
+            activeBackend,
+            isWindows: (): boolean => true,
+            isLocalBackend: (): boolean => true,
+          },
+        },
         {
           provide: RemoteFacadeService,
           useValue: {
@@ -102,6 +110,7 @@ describe('simple workspace actions', () => {
             isRemoteActive: (): boolean => true,
             updateRemoteSettings: save,
             deleteTaskProfile: removeProfile,
+            openRemoteInFiles: vi.fn().mockResolvedValue(undefined),
             startJob,
             stopJob,
             checkMountPathCollision: collision,
@@ -149,6 +158,7 @@ describe('simple workspace actions', () => {
       ],
     });
   });
+  afterEach(() => vi.unstubAllGlobals());
   it('navigates in the agreed order and never mounts implicitly', () => {
     const c = TestBed.runInInjectionContext(() => new SimpleWorkspaceComponent());
     expect(c.pages.map(p => p.key)).toEqual(['connections', 'drives', 'tasks', 'history']);
@@ -347,6 +357,72 @@ describe('simple workspace actions', () => {
     expect(confirm).not.toHaveBeenCalled();
     expect(startJob).not.toHaveBeenCalled();
     expect(startProfileBatch).not.toHaveBeenCalled();
+  });
+  it('opens the actual running disk root rather than a pending letter', async () => {
+    const c = TestBed.runInInjectionContext(() => new SimpleWorkspaceComponent());
+    mounted.set([
+      { fs: 'NAS:live', mount_point: 'X:', starter: { kind: 'profile', name: 'Disk' } },
+    ]);
+    await c.openDisk({ ...disk, destination: 'Y:' });
+    expect(TestBed.inject(RemoteFacadeService).openRemoteInFiles).toHaveBeenCalledWith(
+      'NAS',
+      'X:\\',
+      'Disk',
+      'mount'
+    );
+    expect(startJob).not.toHaveBeenCalled();
+    expect(stopJob).not.toHaveBeenCalled();
+  });
+  it('does not open a disconnected disk or act while pending/refreshing', async () => {
+    const c = TestBed.runInInjectionContext(() => new SimpleWorkspaceComponent());
+    await c.openDisk(disk);
+    mounted.set([{ fs: 'NAS:', mount_point: 'X:', starter: { kind: 'profile', name: 'Disk' } }]);
+    c.pending.set(true);
+    await c.openDisk(disk);
+    c.pending.set(false);
+    vi.spyOn(c.mounts, 'refreshing').mockReturnValue(true);
+    await c.openDisk(disk);
+    expect(TestBed.inject(RemoteFacadeService).openRemoteInFiles).not.toHaveBeenCalled();
+  });
+  it('opens the applied source in the web browser without relying on a cached local drive root', async () => {
+    vi.stubGlobal('__TAURI_INTERNALS__', undefined);
+    const c = TestBed.runInInjectionContext(() => new SimpleWorkspaceComponent());
+    mounted.set([
+      { fs: 'NAS:live', mount_point: 'X:', starter: { kind: 'profile', name: 'Disk' } },
+    ]);
+    await c.openDisk({ ...disk, source: 'NAS:pending' });
+    expect(TestBed.inject(NautilusService).openBrowserOverlay).toHaveBeenCalledWith('NAS', 'live');
+    expect(TestBed.inject(RemoteFacadeService).openRemoteInFiles).not.toHaveBeenCalled();
+  });
+  it('opens the applied source in the integrated browser for a remote backend', async () => {
+    const c = TestBed.runInInjectionContext(() => new SimpleWorkspaceComponent());
+    vi.spyOn(c.backend, 'isLocalBackend').mockReturnValue(false);
+    mounted.set([
+      { fs: 'NAS:live', mount_point: 'X:', starter: { kind: 'profile', name: 'Disk' } },
+    ]);
+    await c.openDisk({ ...disk, source: 'NAS:pending' });
+    expect(TestBed.inject(NautilusService).openBrowserOverlay).toHaveBeenCalledWith('NAS', 'live');
+    expect(TestBed.inject(RemoteFacadeService).openRemoteInFiles).not.toHaveBeenCalled();
+  });
+  it('edits the clicked owner and labels defaults without changing the profile', () => {
+    const c = TestBed.runInInjectionContext(() => new SimpleWorkspaceComponent());
+    c.page.set('drives');
+    c.selected.set('Other');
+    c.edit(disk);
+    expect(c.validEditor()?.remote).toBe('NAS');
+    expect(c.driveLabel({ ...disk, name: 'Default', config: {} })).toBe('NAS');
+    expect(c.driveLabel({ ...disk, name: 'default', config: {} })).toBe('NAS');
+    expect(c.driveLabel({ ...disk, config: { app: { displayName: 'My disk' } } })).toBe('My disk');
+    expect(disk.name).toBe('Disk');
+    expect(save).not.toHaveBeenCalled();
+  });
+  it('adds a disk only for an existing connection without mounting or saving', () => {
+    const c = TestBed.runInInjectionContext(() => new SimpleWorkspaceComponent());
+    c.page.set('drives');
+    c.addDisk('NAS');
+    expect(c.validEditor()).toMatchObject({ remote: 'NAS', mount: true });
+    expect(save).not.toHaveBeenCalled();
+    expect(startJob).not.toHaveBeenCalled();
   });
   it('keeps an existing disk active after editing its desired next letter, scoped to remote and profile', () => {
     const c = TestBed.runInInjectionContext(() => new SimpleWorkspaceComponent());

@@ -87,6 +87,16 @@ export function listSimpleTasks(remote: string, settings: RemoteSettings): Simpl
   });
 }
 
+/** A legacy default key stays stable; the disk uses its connection name until named. */
+export function simpleDiskLabel(task: SimpleTask): string {
+  const name = getAppCfg(task.config)?.displayName?.trim();
+  const isDefault = task.name.toLowerCase() === DEFAULT_PROFILE_NAME.toLowerCase();
+  // Older editors also saved the default profile key as a display name.
+  if (name && (!isDefault || name.toLowerCase() !== DEFAULT_PROFILE_NAME.toLowerCase()))
+    return name;
+  return isDefault ? task.remote : task.name;
+}
+
 /** Empty destinations must never expose a runnable default profile. */
 export function simpleTaskReady(task: SimpleTask, windows = false): boolean {
   return (

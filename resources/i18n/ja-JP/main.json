@@ -4717,7 +4717,7 @@
     },
     "intro": {
       "connections": "First, add an SFTP server or cloud storage.",
-      "drives": "Optionally show a connection as a disk on this computer.",
+      "drives": "All your disks in one place.",
       "tasks": "Choose what to do, which folders to use and when to run.",
       "history": "Find and restore older file versions."
     },
@@ -4782,7 +4782,11 @@
       "volumeName": "Windows volume label (optional)",
       "volumeNameHelp": "Leave empty for the automatic label. Label changes apply on reconnection.",
       "explanation": "What connecting a disk does",
-      "refreshing": "Checking the disk connection…"
+      "refreshing": "Checking the disk connection…",
+      "open": "Open disk",
+      "settings": "Settings",
+      "disconnected": "Disconnected",
+      "chooseConnection": "Choose a connection for the new disk"
     },
     "tasks": {
       "add": "Create a task",

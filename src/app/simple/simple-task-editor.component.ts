@@ -41,6 +41,7 @@ import {
   simpleMountPending,
   simpleVolumeName,
   splitSimplePath,
+  simpleDiskLabel,
 } from './simple-profile.util';
 
 @Component({
@@ -178,7 +179,10 @@ export class SimpleTaskEditorComponent implements OnInit {
     this.draft = {
       ...this.draft,
       operation: task?.operation ?? this.operation(),
-      name: task?.displayName ?? task?.name ?? '',
+      name:
+        task?.operation === 'mount'
+          ? simpleDiskLabel(task)
+          : (task?.displayName ?? task?.name ?? ''),
       volumeName: simpleVolumeName(task?.config),
       source: task?.source ?? (this.operation() === 'mount' ? this.remote() + ':' : ''),
       destination: task?.destination ?? '',

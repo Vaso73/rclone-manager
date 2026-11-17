@@ -4717,7 +4717,7 @@
     },
     "intro": {
       "connections": "Najprv pridaj SFTP server alebo cloudové úložisko.",
-      "drives": "Voliteľne zobraz úložisko ako disk v tomto počítači.",
+      "drives": "Všetky tvoje disky na jednom mieste.",
       "tasks": "Vyber, čo sa má vykonať, s ktorými priečinkami a kedy.",
       "history": "Nájdi a obnov staršie verzie súborov."
     },
@@ -4782,7 +4782,11 @@
       "volumeName": "Menovka disku vo Windows (voliteľná)",
       "volumeNameHelp": "Prázdne použije automatický názov. Zmena menovky sa použije po znovupripojení.",
       "explanation": "Čo znamená pripojiť disk",
-      "refreshing": "Overujem pripojenie disku…"
+      "refreshing": "Overujem pripojenie disku…",
+      "open": "Otvoriť disk",
+      "settings": "Nastavenie",
+      "disconnected": "Odpojené",
+      "chooseConnection": "Vyber pripojenie pre nový disk"
     },
     "tasks": {
       "add": "Vytvoriť úlohu",

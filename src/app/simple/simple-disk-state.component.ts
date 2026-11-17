@@ -8,18 +8,25 @@ import { simpleMountPending } from './simple-profile.util';
   selector: 'app-simple-disk-state',
   imports: [TranslatePipe, PillDirective],
   template: `
-    <section class="detail-section" aria-live="polite">
+    <section class="detail-section" [class.compact]="compact()" aria-live="polite">
       @if (refreshing()) {
         <p role="status">{{ 'simple.drives.refreshing' | translate }}</p>
       } @else if (active(); as disk) {
         <div class="card-row-item">
-          <span>{{ 'simple.drives.current' | translate }}</span>
+          @if (!compact()) {
+            <span>{{ 'simple.drives.current' | translate }}</span>
+          }
           <strong class="truncate" [title]="disk.mount_point">{{ disk.mount_point }}</strong>
           @if (disk.settings?.volume_name; as name) {
             <span>{{ name }}</span>
           }
-          <span appPill size="xs" tone="dim">{{ currentType() | translate }}</span>
-          <span appPill size="xs" tone="dim">{{ currentAccess() | translate }}</span>
+          @if (compact()) {
+            <span aria-hidden="true">·</span><span>{{ currentType() | translate }}</span>
+            <span aria-hidden="true">·</span><span>{{ currentAccess() | translate }}</span>
+          } @else {
+            <span appPill size="xs" tone="dim">{{ currentType() | translate }}</span>
+            <span appPill size="xs" tone="dim">{{ currentAccess() | translate }}</span>
+          }
         </div>
         @if (pending() !== false) {
           <div class="card-row-item">
@@ -87,6 +94,13 @@ import { simpleMountPending } from './simple-profile.util';
         padding: var(--space-xs) 0;
         font-size: var(--font-size-md);
       }
+      .compact {
+        .card-row-item {
+          padding: 0;
+          font-size: var(--font-size-sm);
+          color: var(--dim-color);
+        }
+      }
       strong {
         min-width: 0;
       }
@@ -100,6 +114,7 @@ import { simpleMountPending } from './simple-profile.util';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SimpleDiskStateComponent {
+  readonly compact = input(false);
   readonly active = input<MountedRemote>();
   readonly refreshing = input(false);
   readonly source = input.required<string>();

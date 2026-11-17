@@ -170,13 +170,14 @@ export class NautilusService extends TauriBaseService {
     )
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
-        void this.loadRemoteData();
+        void this.loadRemoteData(true);
       });
   }
 
-  async loadRemoteData(): Promise<void> {
+  async loadRemoteData(force = false): Promise<void> {
     if (!this.vault.isAccessible()) return;
     if (this.loadRemoteDataInFlight) {
+      if (!force) return this.loadRemoteDataInFlight;
       if (!this.nextLoadRemoteDataPromise) {
         this.nextLoadRemoteDataPromise = this.loadRemoteDataInFlight
           .catch(() => undefined)

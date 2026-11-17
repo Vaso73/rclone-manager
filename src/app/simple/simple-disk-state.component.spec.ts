@@ -38,6 +38,28 @@ describe('disk current and pending settings', () => {
     expect(fixture.nativeElement.textContent).not.toContain('simple.drives.pendingHelp');
     expect(fixture.nativeElement.textContent).not.toContain('simple.drives.pending');
   });
+  it('retains pending/current and unknown settings in the compact row', () => {
+    const fixture = TestBed.createComponent(SimpleDiskStateComponent);
+    for (const [key, value] of Object.entries({
+      compact: true,
+      active: { fs: 'NAS:', mount_point: 'X:' },
+      source: 'NAS:folder',
+      destination: 'Y:',
+      networkDrive: true,
+      readOnly: true,
+    }))
+      fixture.componentRef.setInput(key, value);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('X:');
+    expect(fixture.nativeElement.textContent).toContain('Y:');
+    expect(fixture.nativeElement.textContent).toContain('simple.drives.unknownType');
+    expect(fixture.nativeElement.textContent).toContain('simple.drives.currentSource');
+    expect(fixture.nativeElement.textContent).toContain('simple.drives.pendingHelp');
+    fixture.componentRef.setInput('refreshing', true);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('simple.drives.refreshing');
+    expect(fixture.nativeElement.textContent).not.toContain('simple.drives.nextMount');
+  });
   it('shows unavailable launch details explicitly and does not claim saved options are active', () => {
     const fixture = TestBed.createComponent(SimpleDiskStateComponent);
     for (const [key, value] of Object.entries({

@@ -110,7 +110,7 @@ mat-card {
     flex-direction: column;
     min-width: 0;
   }
-  span {
+  > div > span {
     color: var(--dim-color);
     font-size: var(--font-size-sm);
   }
@@ -214,5 +214,21 @@ summary {
   }
   .connection-row mat-card-actions {
     margin-left: 0;
+  }
+}
+
+.drive-row {
+  padding: var(--space-md);
+  .connection-identity {
+    align-items: center;
+  }
+}
+.drive-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+  strong {
+    min-width: 0;
   }
 }
