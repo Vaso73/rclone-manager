@@ -3492,6 +3492,13 @@
     "bisyncConflict": {
       "versionGone": "そのバージョンはもう存在しません: {{path}}。bisync を再実行して現在の競合を確認してください。",
       "stepFailed": "{{path}} を更新できませんでした: {{error}}"
+    },
+    "workspace": {
+      "changed": "The item or its settings changed. Refresh the list and try again.",
+      "inUse": "The item is in use or contains an active run. Finish the operation first.",
+      "restoreFailed": "The restored copy could not be completed or verified. Existing files were not overwritten.",
+      "restorePath": "Choose a valid file and an existing destination folder outside the archive. The name must not contain invalid or reserved characters.",
+      "restoreChecksum": "The restored checksum does not match the archive. The copy was not published to the destination."
     }
   },
   "backendSuccess": {
@@ -4917,6 +4924,71 @@
     "dateFormat": "yyyy-MM-dd HH:mm",
     "order": {
       "move": "ドラッグまたは矢印キーでカードの順序を変更"
+    },
+    "manage": {
+      "restoreFiles": "Restore files",
+      "historyPlaces": "History locations",
+      "runRecords": "Run records",
+      "removeConnection": "Remove connection",
+      "connectionInUse": "Connection is in use",
+      "dependenciesHelp": "Connection {{name}} is used by:\n{{dependencies}}\nFirst update these items in Connected disks, Tasks or Automations. Nothing is stopped or removed automatically.",
+      "removeConnectionConfirm": "Remove connection {{name}} and its access settings? Files and completed records will be preserved.",
+      "removeDisk": "Remove disk profile",
+      "disconnectFirst": "Disconnect the disk first",
+      "removeDiskConfirm": "Remove disk {{name}} on {{remote}}? Only this profile and its automatic startup are removed. The account, tasks and files are preserved.",
+      "removeRecord": "Remove record",
+      "removeRecordConfirm": "Remove completed record #{{id}} ({{name}}) and its details, including child records? Tasks, schedules and files are preserved.",
+      "addPlace": "Add history location",
+      "showHidden": "Show hidden locations",
+      "hideHidden": "Hide hidden locations",
+      "hidePlace": "Hide location from list",
+      "unhidePlace": "Show location again",
+      "hidden": "Hidden",
+      "placeName": "Location name",
+      "archiveRoot": "Older versions folder",
+      "placeHelp": "Only a reference to an existing archive is added. Files are unchanged and no backup task is created.",
+      "noPlaces": "No visible history locations. Add an existing archive or show hidden locations.",
+      "restoreSteps": "File restore steps",
+      "placeStep": "Backup",
+      "fileStep": "File",
+      "versionStep": "Version",
+      "restoreStep": "Restore",
+      "chooseBackup": "Which backup do you want to restore from?",
+      "findFile": "Which file are you looking for?",
+      "searchLabel": "Name or part of the relative path",
+      "search": "Search archive",
+      "searching": "Searching the selected archive: {{folders}} folders.",
+      "partialResults": "Results are partial: the search was cancelled, reached its limit, or some folders are unavailable.",
+      "searchPartial": "Some folders could not be read. Use the available results or try the search again.",
+      "noFiles": "No matching file was found in the searched archive.",
+      "chooseVersion": "Choose an available version",
+      "archiveTimeUnknown": "Archive time unknown",
+      "versionHelp": "Archive time and file modification time are different. Older versions are not a complete snapshot of the folder.",
+      "chooseDestination": "Where should the restored copy be saved?",
+      "destination": "Folder for the restored copy",
+      "chooseFolder": "Choose folder",
+      "newCopy": "A separate copy will be restored",
+      "noOverwrite": "Existing files are never overwritten. If the name exists, the restored copy receives a numbered name. The archive is unchanged.",
+      "continue": "Continue",
+      "browseArchive": "Browse archive",
+      "restoreCopy": "Restore a copy",
+      "restoreReview": "Restore {{name}}?\nOriginal path: {{path}}\nVersion: {{version}}\nArchive: {{root}} / {{source}}\nDestination folder: {{target}}\nA new name is used on collision. Existing files and the archive are preserved.",
+      "restoring": "Copying and verifying the file. Progress is also available in Run records.",
+      "restored": "The restored copy is ready",
+      "restoreFailed": "Restore did not complete. Check the error and result in Run records.",
+      "sizeVerified": "Verified size: {{size}} B",
+      "hashVerified": "The {{type}} checksum matches.",
+      "hashUnavailable": "Size is verified. The archive supplied no checksum; a hash match was not confirmed.",
+      "openRestored": "Open restored copy",
+      "dependency": {
+        "connection": "Connection",
+        "profile": "Saved profile",
+        "automation": "Automation",
+        "mount": "Connected disk",
+        "serve": "Sharing",
+        "job": "Active run"
+      },
+      "destinationHost": "保存先はこのアプリを実行しているコンピューターのフォルダーです。パスを手動で入力することもできます。"
     }
   }
 }

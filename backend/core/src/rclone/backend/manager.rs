@@ -73,6 +73,8 @@ pub struct BackendManager {
     state: RwLock<BackendsState>,
     /// Serialize user-triggered switches through cache and scheduler reconciliation.
     pub(crate) switch_lock: tokio::sync::Mutex<()>,
+    /// Launches publish their active identity before non-cascading deletion can proceed.
+    pub(crate) workspace_operations: Arc<tokio::sync::RwLock<()>>,
     /// Runtime connectivity info (version, os, status) - not persisted
     runtime_info: RwLock<HashMap<String, RuntimeInfo>>,
     /// Per-backend state storage (`backend_name` → cached state)
@@ -87,6 +89,7 @@ impl BackendManager {
         Self {
             state: RwLock::new(BackendsState::new()),
             switch_lock: tokio::sync::Mutex::new(()),
+            workspace_operations: Arc::new(tokio::sync::RwLock::new(())),
             runtime_info: RwLock::new(HashMap::new()),
             per_backend_state: SyncRwLock::new(HashMap::new()),
             options_cache: Arc::new(crate::rclone::state::options::OptionsCache::new()),

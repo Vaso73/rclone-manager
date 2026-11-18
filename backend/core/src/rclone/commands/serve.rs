@@ -171,6 +171,12 @@ pub async fn start_serve(
 
     let backend_name_for_err = backend.name.clone();
 
+    let launch_lock = app
+        .state::<crate::rclone::backend::BackendManager>()
+        .workspace_operations
+        .clone();
+    let _launch_guard = launch_lock.read().await;
+
     // Call serve/start via the transport
     let response_json = transport
         .rpc(serve::START, Some(&payload))

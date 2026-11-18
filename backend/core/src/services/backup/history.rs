@@ -132,6 +132,14 @@ fn overlaps(a: &Location, b: &Location) -> bool {
 }
 
 /// Validate before creating any job. History must be outside both mirror and source.
+/// Component-aware comparison shared by restore destination validation.
+pub fn paths_overlap(first: &str, second: &str, windows: bool) -> Result<bool, String> {
+    Ok(overlaps(
+        &location(first, windows)?,
+        &location(second, windows)?,
+    ))
+}
+
 pub fn validate_root(
     root: &str,
     dest: &str,

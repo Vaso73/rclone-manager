@@ -152,6 +152,8 @@ pub(crate) async fn mount_remote_inner(app: AppHandle, params: MountParams) -> R
         );
 
         let transport = RoutingTransport::for_backend(app.clone(), backend.clone());
+        let launch_lock = app.state::<BackendManager>().workspace_operations.clone();
+        let _launch_guard = launch_lock.read().await;
         if let Err(e) = transport.rpc("vfs/stream/mount", Some(&payload)).await {
             let error_msg = format!("Failed to initialize SAF VFS stream: {e}");
             log_operation(

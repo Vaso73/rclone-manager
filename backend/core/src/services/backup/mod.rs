@@ -2,3 +2,5 @@
 pub mod daily;
 pub mod history;
 pub mod vss;
+
+pub mod history_restore;

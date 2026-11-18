@@ -17,6 +17,7 @@ import { IconService } from '../services/ui/icon.service';
 import { InterfaceModeService } from './interface-mode.service';
 import { SimpleWorkspaceComponent } from './simple-workspace.component';
 import { SimpleTaskEditorComponent } from './simple-task-editor.component';
+import { SimpleWorkspaceManagementService } from './simple-workspace-management.service';
 import { SimpleHistoryComponent } from './simple-history.component';
 import { MountManagementService } from '../services/operations/mount-management.service';
 import { JobInfo } from '@app/types';
@@ -60,6 +61,11 @@ describe('simple workspace actions', () => {
   const stopJob = vi.fn();
   const reconnect = vi.fn();
   const removeProfile = vi.fn();
+  const restoreHistory = vi.fn();
+  const inspectConnection = vi.fn();
+  const removeConnection = vi.fn();
+  const removeRecord = vi.fn();
+  const refreshAll = vi.fn();
   const refreshMounts = vi.fn();
   beforeEach(() => {
     vi.resetAllMocks();
@@ -81,9 +87,23 @@ describe('simple workspace actions', () => {
     selectPath.mockResolvedValue({ cancelled: false, paths: ['D:\\Selected'] });
     list.mockResolvedValue({ list: [] });
     transfer.mockResolvedValue('started');
+    restoreHistory.mockResolvedValue({
+      jobId: 1,
+      destination: 'D:\\Recovered\\verzie.txt',
+      size: 16,
+      hashType: null,
+    });
+    inspectConnection.mockResolvedValue({ revision: 'revision', dependencies: [] });
+    removeConnection.mockResolvedValue(undefined);
+    removeRecord.mockResolvedValue(undefined);
+    refreshAll.mockResolvedValue(undefined);
     refresh.mockResolvedValue(undefined);
     TestBed.configureTestingModule({
       providers: [
+        {
+          provide: SimpleWorkspaceManagementService,
+          useValue: { restoreHistory, inspectConnection, removeConnection, removeRecord },
+        },
         {
           provide: MountManagementService,
           useValue: {
@@ -105,6 +125,8 @@ describe('simple workspace actions', () => {
         {
           provide: RemoteFacadeService,
           useValue: {
+            refreshAll,
+            jobs: signal([]),
             remoteSummaries: signal([{ name: 'NAS', type: 'sftp' }]),
             getRemoteSettings: (): typeof settings => settings,
             isRemoteActive: (): boolean => true,
@@ -257,6 +279,33 @@ describe('simple workspace actions', () => {
     });
     await c.remove(task);
     expect(removeProfile).not.toHaveBeenCalled();
+  });
+  it('inspects connections and refuses in-use, cancelled and stale removals', async () => {
+    const c = TestBed.runInInjectionContext(() => new SimpleWorkspaceComponent());
+    inspectConnection.mockResolvedValue({
+      revision: 'x',
+      dependencies: [{ kind: 'profile', name: 'NAS / copyConfigs / Backup' }],
+    });
+    await c.removeConnection('NAS');
+    expect(JSON.stringify(confirm.mock.calls)).not.toContain('copyConfigs');
+    expect(removeConnection).not.toHaveBeenCalled();
+    inspectConnection.mockResolvedValue({ revision: 'x', dependencies: [] });
+    confirm.mockResolvedValue(false);
+    await c.removeConnection('NAS');
+    expect(removeConnection).not.toHaveBeenCalled();
+    confirm.mockImplementation(async () => {
+      activeBackend.set('Other');
+      return true;
+    });
+    await c.removeConnection('NAS');
+    expect(removeConnection).not.toHaveBeenCalled();
+  });
+  it('removes only an unused connection with its reviewed backend and revision', async () => {
+    const c = TestBed.runInInjectionContext(() => new SimpleWorkspaceComponent());
+    await c.removeConnection('NAS');
+    expect(removeConnection).toHaveBeenCalledExactlyOnceWith('NAS', 'Local', 'revision');
+    expect(refreshAll).toHaveBeenCalled();
+    expect(transfer).not.toHaveBeenCalled();
   });
   it('rejects invalid history before persisting or starting anything', async () => {
     const c = await editorFixture();
@@ -584,30 +633,33 @@ describe('simple workspace actions', () => {
   it('restores by copy under the original name and preserves the archive', async () => {
     const c = await historyFixture();
     await c.restore(entry);
-    expect(transfer).toHaveBeenCalledExactlyOnceWith(
-      [{ remote: 'NAS:history', path: entry.Name, name: 'verzie.txt', isDir: false }],
-      'D:\\Recovered',
-      '',
-      'copy',
-      'dashboard'
-    );
+    expect(restoreHistory).toHaveBeenCalledExactlyOnceWith({
+      backendName: 'Local',
+      root: 'NAS:history',
+      path: entry.Name,
+      name: 'verzie.txt',
+      destination: 'D:\\Recovered',
+      size: 16,
+      modified: entry.ModTime,
+    });
+    expect(transfer).not.toHaveBeenCalled();
   });
   it('never restores a traversal path', async () => {
     const c = await historyFixture();
     await c.restore({ ...entry, Name: '../outside' });
     expect(selectFolder).not.toHaveBeenCalled();
-    expect(transfer).not.toHaveBeenCalled();
+    expect(restoreHistory).not.toHaveBeenCalled();
   });
   it('does not restore after cancellation or a backend change', async () => {
     const c = await historyFixture();
     confirm.mockResolvedValue(false);
     await c.restore(entry);
-    expect(transfer).not.toHaveBeenCalled();
+    expect(restoreHistory).not.toHaveBeenCalled();
     confirm.mockImplementation(async () => {
       activeBackend.set('Other');
       return true;
     });
     await c.restore(entry);
-    expect(transfer).not.toHaveBeenCalled();
+    expect(restoreHistory).not.toHaveBeenCalled();
   });
 });

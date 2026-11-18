@@ -9,7 +9,9 @@
       ></mat-icon>
     </div>
     <h2 class="modal-title">{{ data.title | translate }}</h2>
-    <p class="modal-message">{{ data.message | translate }}</p>
+    <p class="modal-message" [class.preserve-lines]="data.preserveLines">
+      {{ data.message | translate }}
+    </p>
   </div>
 
   <div class="modal-actions">

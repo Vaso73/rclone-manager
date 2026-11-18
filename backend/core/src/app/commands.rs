@@ -103,6 +103,11 @@ macro_rules! MASTER_COMMAND_LIST {
             #[cfg(not(feature = "librclone"))]
             (quit_rclone_engine, $crate::rclone::commands::system::quit_rclone_engine, []);
 
+            // Non-cascading management used by the simple workspace.
+            (inspect_connection_removal, $crate::services::workspace_management::inspect_connection_removal, [name: String, backend_name: String]);
+            (remove_unused_connection, $crate::services::workspace_management::remove_unused_connection, [params: $crate::services::workspace_management::RemoveConnection]);
+            (remove_finished_record, $crate::services::workspace_management::remove_finished_record, [params: $crate::services::workspace_management::RemoveRecord]);
+
             // FILESYSTEM COMMANDS
             (mkdir, $crate::rclone::commands::filesystem::mkdir, [remote: String, path: String, origin: Option<$crate::utils::types::origin::Origin>, group: Option<String>, backend_name: Option<String>]);
             (cleanup, $crate::rclone::commands::filesystem::cleanup, [remote: String, path: Option<String>, origin: Option<$crate::utils::types::origin::Origin>, group: Option<String>]);
@@ -150,6 +155,8 @@ macro_rules! MASTER_COMMAND_LIST {
             (save_remote_settings, $crate::services::settings::remote::manager::save_remote_settings, [remote_name: String, settings: serde_json::Value, backend_name: Option<String>]);
             (delete_remote_profile, $crate::services::settings::remote::manager::delete_remote_profile, [params: $crate::services::settings::remote::manager::DeleteRemoteProfile]);
             (delete_remote_settings, $crate::services::settings::remote::manager::delete_remote_settings, [remote_name: String]);
+
+            (restore_history_copy, $crate::services::backup::history_restore::restore_history_copy, [params: $crate::services::backup::history_restore::RestoreHistoryCopy]);
 
             // BACKUP & RESTORE
             (backup_settings, $crate::services::settings::backup::backup_manager::backup_settings, [backup_dir: String, export_type: $crate::utils::types::backup_types::ExportType, password: Option<String>, remote_name: Option<String>, user_note: Option<String>, include_profiles: Option<Vec<String>>]);

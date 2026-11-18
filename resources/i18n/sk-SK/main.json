@@ -3533,6 +3533,13 @@
     "bisyncConflict": {
       "versionGone": "Táto verzia už neexistuje: {{path}}. Spustite bisync znova, aby ste videli aktuálne konflikty.",
       "stepFailed": "{{path}} sa nepodarilo aktualizovať: {{error}}"
+    },
+    "workspace": {
+      "changed": "Položka alebo jej nastavenia sa zmenili. Obnov zoznam a skús to znova.",
+      "inUse": "Položka sa používa alebo obsahuje aktívny beh. Najprv dokonči príslušnú operáciu.",
+      "restoreFailed": "Obnovenú kópiu sa nepodarilo dokončiť alebo overiť. Existujúce súbory neboli prepísané.",
+      "restorePath": "Vyber platný súbor a existujúci cieľový priečinok mimo archívu. Názov nesmie obsahovať neplatné alebo rezervované znaky.",
+      "restoreChecksum": "Kontrolný súčet obnovenej kópie sa nezhoduje s archívom. Kópia nebola publikovaná do cieľa."
     }
   },
   "backendSuccess": {
@@ -4917,6 +4924,71 @@
     "dateFormat": "dd.MM.yyyy HH:mm",
     "order": {
       "move": "Presuň kartu potiahnutím alebo klávesmi šípok"
+    },
+    "manage": {
+      "restoreFiles": "Obnova súborov",
+      "historyPlaces": "Miesta histórie",
+      "runRecords": "Záznamy behov",
+      "removeConnection": "Odstrániť pripojenie",
+      "connectionInUse": "Pripojenie sa používa",
+      "dependenciesHelp": "Pripojenie {{name}} používajú tieto položky:\n{{dependencies}}\nNajprv ich uprav v Pripojených diskoch, Úlohách alebo Automatizáciách. Nič sa automaticky nezastaví ani neodstráni.",
+      "removeConnectionConfirm": "Odstrániť pripojenie {{name}} a jeho prístupové nastavenia? Súbory a dokončené záznamy zostanú zachované.",
+      "removeDisk": "Odstrániť diskový profil",
+      "disconnectFirst": "Najprv vedome odpoj disk",
+      "removeDiskConfirm": "Odstrániť disk {{name}} pre {{remote}}? Odstráni sa iba tento profil a jeho automatické spúšťanie. Účet, úlohy a súbory zostanú zachované.",
+      "removeRecord": "Odstrániť záznam",
+      "removeRecordConfirm": "Odstrániť dokončený záznam #{{id}} ({{name}}) a jeho podrobnosti vrátane podradených záznamov? Úlohy, plány a súbory zostanú zachované.",
+      "addPlace": "Pridať miesto histórie",
+      "showHidden": "Zobraziť skryté položky",
+      "hideHidden": "Skryť skryté položky",
+      "hidePlace": "Skryť miesto zo zoznamu",
+      "unhidePlace": "Znovu zobraziť miesto",
+      "hidden": "Skryté",
+      "placeName": "Názov miesta",
+      "archiveRoot": "Priečinok starších verzií",
+      "placeHelp": "Pridáva sa iba odkaz na existujúci archív. Súbory sa nemenia a nová zálohovacia úloha sa nevytvorí.",
+      "noPlaces": "Žiadne viditeľné miesta histórie. Pridaj existujúci archív alebo zobraz skryté položky.",
+      "restoreSteps": "Kroky obnovy súboru",
+      "placeStep": "Záloha",
+      "fileStep": "Súbor",
+      "versionStep": "Verzia",
+      "restoreStep": "Obnova",
+      "chooseBackup": "Z ktorej zálohy chceš obnovovať?",
+      "findFile": "Ktorý súbor hľadáš?",
+      "searchLabel": "Názov alebo časť relatívnej cesty",
+      "search": "Vyhľadať v archíve",
+      "searching": "Prehľadávam vybraný archív: {{folders}} priečinkov.",
+      "partialResults": "Výsledky sú čiastočné: hľadanie bolo zrušené, dosiahlo limit alebo niektoré priečinky nie sú dostupné.",
+      "searchPartial": "Niektoré priečinky sa nepodarilo načítať. Dostupné výsledky môžeš použiť alebo hľadanie zopakovať.",
+      "noFiles": "V prehľadanej časti archívu sa súbor nenašiel.",
+      "chooseVersion": "Vyber dostupnú verziu",
+      "archiveTimeUnknown": "Čas archivácie neznámy",
+      "versionHelp": "Čas archivácie a čas úpravy súboru sú odlišné údaje. Staršie verzie nie sú úplnou snímkou celého priečinka.",
+      "chooseDestination": "Kam uložiť obnovenú kópiu?",
+      "destination": "Priečinok pre obnovenú kópiu",
+      "chooseFolder": "Vybrať priečinok",
+      "newCopy": "Obnoví sa samostatná kópia",
+      "noOverwrite": "Existujúci súbor sa neprepíše. Pri rovnakom názve dostane obnovená kópia nové číslo v názve. Archív sa nemení.",
+      "continue": "Pokračovať",
+      "browseArchive": "Prehliadať archív",
+      "restoreCopy": "Obnoviť kópiu",
+      "restoreReview": "Obnoviť {{name}}?\nPôvodná cesta: {{path}}\nVerzia: {{version}}\nArchív: {{root}} / {{source}}\nCieľový priečinok: {{target}}\nPri kolízii sa použije nový názov. Existujúce súbory a archív zostanú zachované.",
+      "restoring": "Kopírujem a overujem súbor. Priebeh je dostupný aj v Záznamoch behov.",
+      "restored": "Obnovená kópia je pripravená",
+      "restoreFailed": "Obnova sa nedokončila. Skontroluj chybu a výsledok v Záznamoch behov.",
+      "sizeVerified": "Overená veľkosť: {{size}} B",
+      "hashVerified": "Kontrolný súčet {{type}} sa zhoduje.",
+      "hashUnavailable": "Veľkosť je overená. Archív neposkytol kontrolný súčet; zhoda hashu nebola potvrdená.",
+      "openRestored": "Otvoriť obnovenú kópiu",
+      "dependency": {
+        "connection": "Pripojenie",
+        "profile": "Uložený profil",
+        "automation": "Automatizácia",
+        "mount": "Pripojený disk",
+        "serve": "Zdieľanie",
+        "job": "Aktívny beh"
+      },
+      "destinationHost": "Cieľ je priečinok v počítači, na ktorom beží aplikácia. Cestu môžeš zadať aj ručne."
     }
   }
 }

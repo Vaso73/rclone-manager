@@ -72,6 +72,19 @@
                   {{ 'simple.connections.accountSettings' | translate }}
                 </button>
                 <button
+                  class="action-button"
+                  type="button"
+                  data-destructive="true"
+                  (click)="removeConnection(remote.name)"
+                  [disabled]="pending()"
+                  [title]="'simple.manage.removeConnection' | translate"
+                  [attr.aria-label]="
+                    ('simple.manage.removeConnection' | translate) + ' ' + remote.name
+                  "
+                >
+                  <mat-icon svgIcon="trash"></mat-icon>
+                </button>
+                <button
                   class="action-button reorder-handle"
                   type="button"
                   [appSimpleReorder]="remote.name"
@@ -201,6 +214,22 @@
                     >{{ 'simple.drives.settings' | translate }}
                   </button>
                   <button
+                    class="action-button"
+                    type="button"
+                    data-destructive="true"
+                    (click)="remove(task)"
+                    [disabled]="pending() || !!activeDisk || mounts.refreshing()"
+                    [title]="
+                      (activeDisk ? 'simple.manage.disconnectFirst' : 'simple.manage.removeDisk')
+                        | translate
+                    "
+                    [attr.aria-label]="
+                      ('simple.manage.removeDisk' | translate) + ' ' + driveLabel(task)
+                    "
+                  >
+                    <mat-icon svgIcon="trash"></mat-icon>
+                  </button>
+                  <button
                     class="action-button reorder-handle"
                     type="button"
                     [appSimpleReorder]="taskKey(task)"
@@ -240,39 +269,147 @@
           <p role="status">{{ 'simple.loading' | translate }}</p>
         }
       } @else if (page() === 'history') {
+        <div
+          class="page-actions connection-picker history-navigation"
+          [attr.data-order-group]="orderScope('history-navigation')"
+          role="group"
+          [attr.aria-label]="'simple.nav.history' | translate"
+        >
+          @for (section of historySections(); track section.key) {
+            <div
+              class="connection-choice"
+              [attr.data-selected]="historyView() === section.key"
+              [attr.data-order-key]="section.key"
+            >
+              <button
+                matButton
+                (click)="historyView.set(section.key); history.set(null)"
+                [attr.aria-pressed]="historyView() === section.key"
+              >
+                <mat-icon [svgIcon]="section.icon"></mat-icon
+                ><span class="truncate">{{ section.label | translate }}</span>
+              </button>
+              <button
+                class="action-button reorder-handle"
+                type="button"
+                [appSimpleReorder]="section.key"
+                (reordered)="reorder('history-navigation', $event)"
+                [title]="'simple.order.move' | translate"
+                [attr.aria-label]="
+                  ('simple.order.move' | translate) + ' ' + (section.label | translate)
+                "
+              >
+                <mat-icon svgIcon="drag-indicator"></mat-icon>
+              </button>
+            </div>
+          }
+        </div>
         @if (validHistory(); as task) {
           <button matButton (click)="history.set(null)">
-            {{ 'simple.history.back' | translate }}</button
-          ><mat-card
+            {{ 'simple.history.back' | translate }}
+          </button>
+          <mat-card
             ><mat-card-content
               ><app-simple-history [task]="task"></app-simple-history></mat-card-content
           ></mat-card>
-        } @else {
+        } @else if (historyView() === 'restore') {
+          <app-simple-history-wizard
+            [places]="availableHistoryPlaces()"
+            [initialPlace]="restorePlace()"
+            (browse)="browseHistory($event)"
+          ></app-simple-history-wizard>
+        } @else if (historyView() === 'locations') {
           <div class="page-actions">
-            <span class="section-label">{{ 'simple.history.locations' | translate }}</span>
+            <button matButton="filled" (click)="addingHistoryPlace.set(!addingHistoryPlace())">
+              <mat-icon svgIcon="plus"></mat-icon>{{ 'simple.manage.addPlace' | translate }}
+            </button>
+            <button matButton (click)="showHiddenHistory.set(!showHiddenHistory())">
+              {{
+                (showHiddenHistory() ? 'simple.manage.hideHidden' : 'simple.manage.showHidden')
+                  | translate
+              }}
+            </button>
           </div>
-          <div class="connection-list" [attr.data-order-group]="orderScope('history')">
-            @for (task of historyTasks(); track taskKey(task)) {
-              <mat-card class="connection-row history-row" [attr.data-order-key]="taskKey(task)">
+          @if (addingHistoryPlace()) {
+            <form class="detail-section" (ngSubmit)="addHistoryPlace()">
+              <mat-form-field
+                ><mat-label>{{ 'simple.manage.placeName' | translate }}</mat-label
+                ><input matInput name="placeName" [(ngModel)]="newHistoryName" required
+              /></mat-form-field>
+              <div class="page-actions">
+                <mat-form-field
+                  ><mat-label>{{ 'simple.manage.archiveRoot' | translate }}</mat-label
+                  ><input
+                    matInput
+                    name="root"
+                    [ngModel]="newHistoryRoot()"
+                    (ngModelChange)="newHistoryRoot.set($event)"
+                    required /></mat-form-field
+                ><button matButton type="button" (click)="chooseHistoryRoot()">
+                  <mat-icon svgIcon="folder-open"></mat-icon
+                  >{{ 'simple.manage.chooseFolder' | translate }}
+                </button>
+              </div>
+              <div class="page-actions">
+                <button matButton type="button" (click)="addingHistoryPlace.set(false)">
+                  {{ 'common.cancel' | translate }}</button
+                ><button
+                  matButton="outlined"
+                  type="submit"
+                  [disabled]="!newHistoryName.trim() || !validHistoryRoot(newHistoryRoot())"
+                >
+                  {{ 'common.save' | translate }}
+                </button>
+              </div>
+              <p>{{ 'simple.manage.placeHelp' | translate }}</p>
+            </form>
+          }
+          <div class="connection-list" [attr.data-order-group]="orderScope('history-places')">
+            @for (place of visibleHistoryPlaces(); track place.id) {
+              <mat-card class="connection-row history-row" [attr.data-order-key]="place.id">
                 <div class="connection-identity">
                   <mat-icon svgIcon="box-archive"></mat-icon>
                   <div>
-                    <strong class="truncate" [title]="label(task)">{{ label(task) }}</strong>
-                    <span class="truncate" [title]="task.remote + ' · ' + task.history"
-                      >{{ task.remote }} · {{ task.history }}</span
-                    >
+                    <strong class="truncate" [title]="place.name">{{ place.name }}</strong
+                    ><span class="truncate" [title]="place.root">{{ place.root }}</span>
+                    @if (place.hidden) {
+                      <span>{{ 'simple.manage.hidden' | translate }}</span>
+                    }
                   </div>
                 </div>
                 <mat-card-actions>
-                  <button matButton (click)="history.set(task)">
+                  <button
+                    matButton
+                    (click)="restorePlace.set(place.id); historyView.set('restore')"
+                  >
+                    {{ 'simple.manage.restoreFiles' | translate }}
+                  </button>
+                  <button matButton (click)="browseHistory(place)">
                     <mat-icon svgIcon="folder-open"></mat-icon
-                    >{{ 'simple.history.open' | translate }}
+                    >{{ 'simple.manage.browseArchive' | translate }}
+                  </button>
+                  <button
+                    class="action-button"
+                    type="button"
+                    (click)="toggleHistoryPlace(place)"
+                    [title]="
+                      (place.hidden ? 'simple.manage.unhidePlace' : 'simple.manage.hidePlace')
+                        | translate
+                    "
+                    [attr.aria-label]="
+                      ((place.hidden ? 'simple.manage.unhidePlace' : 'simple.manage.hidePlace')
+                        | translate) +
+                      ' ' +
+                      place.name
+                    "
+                  >
+                    <mat-icon [svgIcon]="place.hidden ? 'eye' : 'eye-slash'"></mat-icon>
                   </button>
                   <button
                     class="action-button reorder-handle"
                     type="button"
-                    [appSimpleReorder]="taskKey(task)"
-                    (reordered)="reorder('history', $event)"
+                    [appSimpleReorder]="place.id"
+                    (reordered)="reorder('history-places', $event)"
                     [title]="'simple.order.move' | translate"
                     [attr.aria-label]="'simple.order.move' | translate"
                   >
@@ -282,11 +419,8 @@
               </mat-card>
             } @empty {
               <div class="empty-state">
-                <mat-icon svgIcon="clock"></mat-icon>
-                <p>{{ 'simple.history.noTasks' | translate }}</p>
-                <button matButton (click)="navigate('tasks')">
-                  {{ 'simple.nav.tasks' | translate }}
-                </button>
+                <mat-icon svgIcon="box-archive"></mat-icon>
+                <p>{{ 'simple.manage.noPlaces' | translate }}</p>
               </div>
             }
           </div>
@@ -294,35 +428,47 @@
             <summary>{{ 'simple.history.explanation' | translate }}</summary>
             <p>{{ 'simple.history.locationsHelp' | translate }}</p>
           </details>
+        } @else {
+          <section class="detail-section">
+            <h2>{{ 'simple.manage.runRecords' | translate }}</h2>
+            <p>{{ 'simple.history.runsHelp' | translate }}</p>
+            @for (job of facade.jobs().slice(0, 20); track job.execute_id || job.jobid) {
+              <div class="card-row-item history-run">
+                <span>{{ job.remote_name }}</span
+                ><strong>{{ jobProfile(job) || ('simple.history.unnamedRun' | translate) }}</strong
+                ><span>{{ jobType(job) | translate }}</span>
+                @if (job.dry_run) {
+                  <span appPill tone="accent" size="xs">{{
+                    'detailShared.jobs.dryRun' | translate
+                  }}</span>
+                } @else if (job.dry_run === null || job.dry_run === undefined) {
+                  <span appPill size="xs">{{ 'simple.history.modeUnknown' | translate }}</span>
+                }
+                <span appPill size="xs">#{{ job.jobid }}</span
+                ><span>{{ 'simple.status.' + job.status | translate }}</span
+                ><span>{{ job.start_time | date: ('simple.dateFormat' | translate) }}</span
+                ><button matButton (click)="details(job)">
+                  {{ 'simple.tasks.result' | translate }}
+                </button>
+                <button
+                  class="action-button"
+                  type="button"
+                  data-destructive="true"
+                  (click)="removeRecord(job)"
+                  [disabled]="pending() || job.status === 'Running'"
+                  [title]="'simple.manage.removeRecord' | translate"
+                  [attr.aria-label]="('simple.manage.removeRecord' | translate) + ' #' + job.jobid"
+                >
+                  <mat-icon svgIcon="trash"></mat-icon>
+                </button>
+              </div>
+            } @empty {
+              <div class="empty-state">
+                <span>{{ 'simple.history.noRuns' | translate }}</span>
+              </div>
+            }
+          </section>
         }
-        <section class="detail-section">
-          <h2>{{ 'simple.history.runs' | translate }}</h2>
-          <p>{{ 'simple.history.runsHelp' | translate }}</p>
-          @for (job of facade.jobs().slice(0, 20); track job.execute_id) {
-            <div class="card-row-item">
-              <span>{{ job.remote_name }}</span>
-              <strong>{{ jobProfile(job) || ('simple.history.unnamedRun' | translate) }}</strong>
-              <span>{{ jobType(job) | translate }}</span>
-              @if (job.dry_run) {
-                <span appPill tone="accent" size="xs">{{
-                  'detailShared.jobs.dryRun' | translate
-                }}</span>
-              } @else if (job.dry_run === null || job.dry_run === undefined) {
-                <span appPill size="xs">{{ 'simple.history.modeUnknown' | translate }}</span>
-              }
-              <span appPill size="xs">#{{ job.jobid }}</span>
-              <span>{{ 'simple.status.' + job.status | translate }}</span
-              ><span>{{ job.start_time | date: ('simple.dateFormat' | translate) }}</span
-              ><button matButton (click)="details(job)">
-                {{ 'simple.tasks.result' | translate }}
-              </button>
-            </div>
-          } @empty {
-            <div class="empty-state">
-              <span>{{ 'simple.history.noRuns' | translate }}</span>
-            </div>
-          }
-        </section>
       } @else {
         <div class="page-actions task-toolbar">
           <button
@@ -461,7 +607,8 @@
                   </button>
                 }
                 <button
-                  matButton="filled"
+                  matButton="outlined"
+                  class="run-action"
                   (click)="run(task, false)"
                   [disabled]="pending() || active(task) || !ready(task)"
                 >
@@ -486,24 +633,26 @@
                   </button>
                 }
                 <button
-                  matButton
+                  class="action-button"
+                  type="button"
                   (click)="edit(task)"
                   [disabled]="pending() || (task.operation !== 'mount' && active(task))"
+                  [title]="'simple.tasks.edit' | translate"
+                  [attr.aria-label]="('simple.tasks.edit' | translate) + ' ' + label(task)"
                 >
-                  {{
-                    (task.operation === 'mount' ? 'simple.drives.edit' : 'simple.tasks.edit')
-                      | translate
-                  }}
+                  <mat-icon svgIcon="pen"></mat-icon>
                 </button>
                 @if (page() === 'tasks') {
                   <button
-                    matButton
-                    data-tone="warn"
+                    class="action-button"
+                    type="button"
+                    data-destructive="true"
                     (click)="remove(task)"
                     [disabled]="pending() || active(task)"
                     [title]="'simple.tasks.delete' | translate"
+                    [attr.aria-label]="('simple.tasks.delete' | translate) + ' ' + label(task)"
                   >
-                    {{ 'common.delete' | translate }}
+                    <mat-icon svgIcon="trash"></mat-icon>
                   </button>
                 }
                 <button

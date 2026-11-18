@@ -16,6 +16,8 @@ import { BackendService } from '../services/infrastructure/system/backend.servic
 import { RemoteFileOperationsService } from '../services/remote/remote-file-operations.service';
 import { FileSystemService } from '../services/operations/file-system.service';
 import { NotificationService } from '../services/ui/notification.service';
+import { SimpleWorkspaceManagementService } from './simple-workspace-management.service';
+import { historyVersion } from './simple-history-search.util';
 import { legacyArchiveDate } from './simple-history-path.util';
 import { SimpleTask, restoredHistoryName, safeHistoryName } from './simple-profile.util';
 
@@ -30,6 +32,7 @@ export class SimpleHistoryComponent implements OnDestroy {
   readonly task = input.required<SimpleTask>();
   private readonly backend = inject(BackendService);
   private readonly ops = inject(RemoteFileOperationsService);
+  private readonly management = inject(SimpleWorkspaceManagementService);
   private readonly files = inject(FileSystemService);
   private readonly notifications = inject(NotificationService);
   private readonly translate = inject(TranslateService);
@@ -100,25 +103,40 @@ export class SimpleHistoryComponent implements OnDestroy {
       name = restoredHistoryName(entry.Name, path);
     this.busy.set(true);
     try {
-      const target = await this.files.selectFolder();
+      const target = await this.files.selectFolder(false, undefined, true);
       if (!target || generation !== this.generation || backend !== this.backend.activeBackend())
         return;
       const accepted = await this.notifications.confirmModal(
-        'simple.history.restore',
-        this.translate.instant('simple.history.restoreConfirm', { name, target }),
-        'simple.history.restore',
-        'common.cancel'
+        'simple.manage.restoreCopy',
+        this.translate.instant('simple.manage.restoreReview', {
+          name,
+          target,
+          path,
+          root,
+          version:
+            historyVersion(entry, this.path())?.archived ||
+            this.translate.instant('simple.manage.archiveTimeUnknown'),
+          source: path,
+        }),
+        'simple.manage.restoreCopy',
+        'common.cancel',
+        { preserveLines: true }
       );
       if (!accepted || generation !== this.generation || backend !== this.backend.activeBackend())
         return;
-      await this.ops.transferItems(
-        [{ remote: root, path, name, isDir: false }],
-        target,
-        '',
-        'copy',
-        'dashboard'
-      );
-      this.notifications.showSuccess(this.translate.instant('simple.history.restoreStarted'));
+      const restored = await this.management.restoreHistory({
+        backendName: backend,
+        root,
+        path,
+        name,
+        destination: target,
+        size: entry.Size,
+        modified: entry.ModTime,
+      });
+      if (generation === this.generation && backend === this.backend.activeBackend())
+        this.notifications.showSuccess(
+          this.translate.instant('simple.manage.restored') + ': ' + restored.destination
+        );
     } catch (error) {
       this.notifications.showError(error);
     } finally {

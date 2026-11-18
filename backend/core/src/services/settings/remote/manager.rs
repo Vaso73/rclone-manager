@@ -122,10 +122,13 @@ async fn save_remote_settings_impl(
     if let Some(params) = &deletion {
         let cache = backend_manager.remote_cache().await;
         let in_use = match params.operation {
-            OperationType::Mount => cache
-                .find_mount_by_profile(&remote_name, &params.profile_name)
-                .await
-                .is_some(),
+            OperationType::Mount => {
+                cache.refresh_mounted_remotes(app.clone(), &backend).await?;
+                cache
+                    .find_mount_by_profile(&remote_name, &params.profile_name)
+                    .await
+                    .is_some()
+            }
             OperationType::Serve => cache
                 .find_serve_by_profile(&remote_name, &params.profile_name)
                 .await

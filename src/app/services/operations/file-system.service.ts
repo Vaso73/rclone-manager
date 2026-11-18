@@ -32,10 +32,17 @@ export class FileSystemService extends TauriBaseService {
    * Select a folder with optional empty requirement
    * @param requireEmpty - If true, require the folder to be empty (for mount destinations)
    * @param initialPath - Optional initial path to open the picker to
+   * @param hostFilesystem - Restore targets belong to this app host, never an external RC host.
    */
-  async selectFolder(requireEmpty?: boolean, initialPath?: string): Promise<string> {
+  async selectFolder(
+    requireEmpty?: boolean,
+    initialPath?: string,
+    hostFilesystem = false
+  ): Promise<string> {
+    if (hostFilesystem && !this.backendService.isLocalBackend() && (!this.isTauri || isMobile()))
+      return '';
     // If internal browser is preferred (headless or remote backend), use Nautilus
-    if (this.isInternalBrowserPreferred()) {
+    if (this.isInternalBrowserPreferred() && !(hostFilesystem && this.isTauri && !isMobile())) {
       const config: FilePickerConfig = {
         mode: 'local',
         selection: 'folders',

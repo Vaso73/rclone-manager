@@ -79,6 +79,7 @@ export const ABOUT_MODAL_SIZE: Readonly<ModalSize> = Object.freeze({
 });
 
 export interface ConfirmDialogData {
+  preserveLines?: boolean;
   title: string;
   message: string;
   confirmText?: string;

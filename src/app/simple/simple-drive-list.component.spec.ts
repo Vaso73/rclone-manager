@@ -21,6 +21,8 @@ import { ModalService } from '../services/ui/modal.service';
 import { NotificationService } from '../services/ui/notification.service';
 import { NautilusService } from '../services/ui/nautilus.service';
 import { SimpleReorderDirective } from './simple-reorder.directive';
+import { SimpleWorkspaceManagementService } from './simple-workspace-management.service';
+import { FileSystemService } from '../services/operations/file-system.service';
 import { LocalStorageService } from '../services/ui/state/local-storage.service';
 import { IconService } from '../services/ui/icon.service';
 
@@ -81,6 +83,8 @@ describe('All connected disks with the actual workspace template', () => {
     ]);
     TestBed.configureTestingModule({
       providers: [
+        { provide: SimpleWorkspaceManagementService, useValue: {} },
+        { provide: FileSystemService, useValue: {} },
         {
           provide: LocalStorageService,
           useValue: {
@@ -155,8 +159,11 @@ describe('All connected disks with the actual workspace template', () => {
     vi.restoreAllMocks();
   });
   function findButton(parent: ParentNode, label: string): HTMLButtonElement {
-    const button = Array.from(parent.querySelectorAll('button')).find(b =>
-      b.textContent?.includes(label)
+    const button = Array.from(parent.querySelectorAll('button')).find(
+      b =>
+        b.textContent?.includes(label) ||
+        b.getAttribute('aria-label')?.includes(label) ||
+        b.getAttribute('title')?.includes(label)
     );
     if (!button) throw new Error('Missing action: ' + label);
     return button;
@@ -170,6 +177,18 @@ describe('All connected disks with the actual workspace template', () => {
     await fixture.whenStable();
     return fixture;
   }
+  it('keeps disconnected compact metadata in text while retaining all mount settings', async () => {
+    mounted.set([]);
+    const f = TestBed.createComponent(SimpleWorkspaceComponent);
+    f.componentInstance.navigate('drives');
+    f.detectChanges();
+    await f.whenStable();
+    const state = f.nativeElement.querySelector('app-simple-disk-state');
+    expect(state.querySelectorAll('.app-pill').length).toBe(0);
+    expect(state.textContent).toContain('Z:');
+    expect(state.textContent).toContain('simple.drives.local');
+    expect(state.textContent).toContain('simple.drives.readWrite');
+  });
   it('renders all owners and multiple profiles together without selecting a connection or changing configuration', async () => {
     const before = structuredClone(settings);
     const fixture = await create();
@@ -340,12 +359,17 @@ describe('All connected disks with the actual workspace template', () => {
     taskProfiles();
     const fixture = await create();
     fixture.componentInstance.navigate('history');
+    fixture.componentInstance.historyView.set('locations');
     fixture.detectChanges();
     await fixture.whenStable();
     const element = fixture.nativeElement as HTMLElement;
+    expect(element.querySelectorAll('.history-navigation .connection-choice')).toHaveLength(3);
     expect(element.querySelectorAll('.history-row')).toHaveLength(1);
     expect(element.textContent).toContain('NAS:history');
-    findButton(element.querySelector('.history-row') as HTMLElement, 'simple.history.open').click();
+    findButton(
+      element.querySelector('.history-row') as HTMLElement,
+      'simple.manage.browseArchive'
+    ).click();
     fixture.detectChanges();
     expect(fixture.componentInstance.validHistory()?.name).toBe('Cross');
     expect(element.querySelector('app-simple-history')).not.toBeNull();

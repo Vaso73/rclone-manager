@@ -1,0 +1,177 @@
+<section class="history-wizard" [attr.aria-busy]="restoring()">
+  <ol class="wizard-steps" [attr.aria-label]="'simple.manage.restoreSteps' | translate">
+    @for (
+      label of ['placeStep', 'fileStep', 'versionStep', 'restoreStep'];
+      track label;
+      let index = $index
+    ) {
+      <li [attr.aria-current]="step() === index ? 'step' : null">
+        {{ index + 1 }}. {{ 'simple.manage.' + label | translate }}
+      </li>
+    }
+  </ol>
+  @if (step() === 0) {
+    <h2>{{ 'simple.manage.chooseBackup' | translate }}</h2>
+    @for (item of places(); track item.id) {
+      <button
+        type="button"
+        class="history-choice"
+        (click)="choosePlace(item.id)"
+        [attr.aria-pressed]="selectedPlace() === item.id"
+      >
+        <mat-icon
+          [svgIcon]="selectedPlace() === item.id ? 'check-circle' : 'box-archive'"
+        ></mat-icon>
+        <span
+          ><strong>{{ item.name }}</strong
+          ><span class="truncate" [title]="item.root">{{ item.root }}</span></span
+        >
+      </button>
+    } @empty {
+      <div class="empty-state">
+        <mat-icon svgIcon="box-archive"></mat-icon>
+        <p>{{ 'simple.manage.noPlaces' | translate }}</p>
+      </div>
+    }
+  } @else if (step() === 1) {
+    <h2>{{ 'simple.manage.findFile' | translate }}</h2>
+    <p class="truncate" [title]="place()?.root || ''">{{ place()?.name }} · {{ place()?.root }}</p>
+    <form class="search-controls" (ngSubmit)="search()">
+      <mat-form-field
+        ><mat-label>{{ 'simple.manage.searchLabel' | translate }}</mat-label
+        ><input matInput name="query" [(ngModel)]="query" [disabled]="busy()"
+      /></mat-form-field>
+      <button matButton="outlined" type="submit" [disabled]="!query.trim() || busy()">
+        <mat-icon svgIcon="search"></mat-icon>{{ 'simple.manage.search' | translate }}
+      </button>
+      @if (busy()) {
+        <button matButton type="button" (click)="cancelSearch()">
+          {{ 'common.cancel' | translate }}
+        </button>
+      }
+    </form>
+    @if (busy()) {
+      <p role="status">{{ 'simple.manage.searching' | translate: { folders: folders() } }}</p>
+    }
+    @if (partial()) {
+      <p role="status">{{ 'simple.manage.partialResults' | translate }}</p>
+    }
+    @for (file of filesFound(); track file) {
+      <button
+        type="button"
+        class="history-choice"
+        (click)="chooseFile(file)"
+        [attr.aria-pressed]="selectedFile() === file"
+      >
+        <mat-icon svgIcon="file"></mat-icon><span class="truncate" [title]="file">{{ file }}</span>
+      </button>
+    } @empty {
+      @if (searched() && !busy() && !error()) {
+        <div class="empty-state">
+          <p>{{ 'simple.manage.noFiles' | translate }}</p>
+        </div>
+      }
+    }
+  } @else if (step() === 2) {
+    <h2>{{ 'simple.manage.chooseVersion' | translate }}</h2>
+    <p>{{ selectedFile() }}</p>
+    @for (version of fileVersions(); track version.path) {
+      <button
+        type="button"
+        class="history-choice"
+        (click)="selectedPath.set(version.path)"
+        [attr.aria-pressed]="selectedPath() === version.path"
+      >
+        <mat-icon svgIcon="clock"></mat-icon
+        ><span
+          ><strong>{{
+            version.archived
+              ? archiveDate(version.archived)
+              : ('simple.manage.archiveTimeUnknown' | translate)
+          }}</strong
+          ><span
+            >{{ version.entry.Size | number }} B · {{ 'simple.history.modified' | translate }}
+            {{
+              modifiedDate(version.entry.ModTime) | date: ('simple.dateFormat' | translate)
+            }}</span
+          ><span class="truncate" [title]="version.path">{{ version.path }}</span></span
+        >
+      </button>
+    }
+    <p>{{ 'simple.manage.versionHelp' | translate }}</p>
+  } @else {
+    <h2>{{ 'simple.manage.chooseDestination' | translate }}</h2>
+    <div class="search-controls">
+      <mat-form-field
+        ><mat-label>{{ 'simple.manage.destination' | translate }}</mat-label
+        ><input
+          matInput
+          [disabled]="restoring() || !!result()"
+          [ngModel]="destination()"
+          (ngModelChange)="destination.set($event)" /></mat-form-field
+      ><button matButton type="button" (click)="chooseDestination()" [disabled]="restoring()">
+        <mat-icon svgIcon="folder-open"></mat-icon>{{ 'simple.manage.chooseFolder' | translate }}
+      </button>
+    </div>
+    <p>{{ 'simple.manage.destinationHost' | translate }}</p>
+    <div class="detail-section">
+      <strong>{{ 'simple.manage.newCopy' | translate }}</strong>
+      <p>{{ chosen()?.name }} · {{ chosen()?.entry?.Size | number }} B</p>
+      <p>{{ 'simple.manage.noOverwrite' | translate }}</p>
+    </div>
+    @if (restoring()) {
+      <div class="loading-container" role="status">{{ 'simple.manage.restoring' | translate }}</div>
+    }
+    @if (result(); as restored) {
+      <div class="detail-section" role="status">
+        <strong>{{ 'simple.manage.restored' | translate }}</strong>
+        <p>{{ restored.destination }}</p>
+        <p>{{ 'simple.manage.sizeVerified' | translate: { size: restored.size } }}</p>
+        <p>
+          {{
+            restored.hashType
+              ? ('simple.manage.hashVerified' | translate: { type: restored.hashType })
+              : ('simple.manage.hashUnavailable' | translate)
+          }}
+        </p>
+        <button matButton (click)="openResult()">
+          {{ 'simple.manage.openRestored' | translate }}
+        </button>
+      </div>
+    }
+  }
+  @if (error()) {
+    <p role="alert">{{ error() | translate }}</p>
+  }
+  <div class="wizard-actions">
+    @if (step() > 0) {
+      <button matButton (click)="back()" [disabled]="restoring()">
+        {{ 'common.back' | translate }}
+      </button>
+    }
+    @if (place(); as location) {
+      <button matButton (click)="browse.emit(location)" [disabled]="restoring()">
+        {{ 'simple.manage.browseArchive' | translate }}
+      </button>
+    }
+    @if (step() < 3) {
+      <button
+        matButton="outlined"
+        (click)="next()"
+        [disabled]="
+          busy() || !place() || (step() === 1 && !selectedFile()) || (step() === 2 && !chosen())
+        "
+      >
+        {{ 'simple.manage.continue' | translate }}
+      </button>
+    } @else {
+      <button
+        matButton="outlined"
+        (click)="restore()"
+        [disabled]="restoring() || !destination() || !!result()"
+      >
+        {{ 'simple.manage.restoreCopy' | translate }}
+      </button>
+    }
+  </div>
+</section>

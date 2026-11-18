@@ -152,6 +152,27 @@ impl JobCache {
     }
 
     pub async fn delete_job(&self, jobid: u64, app: Option<&AppHandle>) -> Result<(), String> {
+        self.delete_job_checked(jobid, None, app).await
+    }
+
+    /// Exact execution identity and active descendants are checked under the same write lock.
+    pub(crate) async fn delete_finished_record(
+        &self,
+        jobid: u64,
+        execute_id: Option<&str>,
+        start_time: chrono::DateTime<chrono::Utc>,
+        app: Option<&AppHandle>,
+    ) -> Result<(), String> {
+        self.delete_job_checked(jobid, Some((execute_id, start_time)), app)
+            .await
+    }
+
+    async fn delete_job_checked(
+        &self,
+        jobid: u64,
+        expected: Option<(Option<&str>, chrono::DateTime<chrono::Utc>)>,
+        app: Option<&AppHandle>,
+    ) -> Result<(), String> {
         let mut ids_to_delete = vec![jobid];
         let mut seen = HashSet::from([jobid]);
         let mut index = 0;
@@ -181,6 +202,20 @@ impl JobCache {
         }
 
         drop(children_by_parent);
+        if let Some((execute_id, start_time)) = expected {
+            let current = jobs
+                .get(&jobid)
+                .ok_or_else(|| crate::localized_error!("backendErrors.workspace.changed"))?;
+            if current.execute_id.as_deref() != execute_id || current.start_time != start_time {
+                return Err(crate::localized_error!("backendErrors.workspace.changed"));
+            }
+            if ids_to_delete
+                .iter()
+                .any(|id| jobs.get(id).is_some_and(|job| job.status.is_running()))
+            {
+                return Err(crate::localized_error!("backendErrors.workspace.inUse"));
+            }
+        }
         let mut removed_jobs = Vec::with_capacity(ids_to_delete.len());
         for id in &ids_to_delete {
             if let Some(job) = jobs.remove(id) {
@@ -1190,5 +1225,63 @@ mod tests {
         // Nothing to do below the limit.
         cache.prune_finished(None).await;
         assert_eq!(cache.get_jobs().await.len(), kept.len());
+    }
+}
+
+#[cfg(test)]
+mod finished_record_tests {
+    use super::*;
+    #[tokio::test]
+    async fn active_parent_or_child_and_reused_id_are_preserved() {
+        let cache = JobCache::new();
+        let mut parent = JobInfo::for_test();
+        parent.status = JobStatus::Completed;
+        let start = parent.start_time;
+        cache.jobs.write().await.insert(1, parent.clone());
+        let mut child = JobInfo::for_test();
+        child.jobid = 2;
+        child.parent_job_id = Some(1);
+        cache.jobs.write().await.insert(2, child);
+        assert!(
+            cache
+                .delete_finished_record(1, None, start, None)
+                .await
+                .is_err()
+        );
+        assert_eq!(cache.jobs.read().await.len(), 2);
+        cache.jobs.write().await.get_mut(&2).unwrap().status = JobStatus::Completed;
+        assert!(
+            cache
+                .delete_finished_record(1, Some("stale"), start, None)
+                .await
+                .is_err()
+        );
+        assert_eq!(cache.jobs.read().await.len(), 2);
+        cache
+            .delete_finished_record(1, None, start, None)
+            .await
+            .unwrap();
+        assert!(cache.jobs.read().await.is_empty());
+    }
+    #[tokio::test]
+    async fn unrelated_records_survive_and_timestamp_prevents_legacy_id_reuse() {
+        let cache = JobCache::new();
+        let mut job = JobInfo::for_test();
+        job.status = JobStatus::Completed;
+        let start = job.start_time;
+        cache.jobs.write().await.insert(1, job.clone());
+        job.jobid = 3;
+        cache.jobs.write().await.insert(3, job);
+        assert!(
+            cache
+                .delete_finished_record(1, None, start + chrono::Duration::seconds(1), None)
+                .await
+                .is_err()
+        );
+        cache
+            .delete_finished_record(1, None, start, None)
+            .await
+            .unwrap();
+        assert!(cache.jobs.read().await.contains_key(&3));
     }
 }

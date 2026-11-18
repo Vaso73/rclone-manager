@@ -20,3 +20,5 @@ pub mod check_binaries;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub mod power;
 pub mod updates;
+
+pub mod workspace_management;

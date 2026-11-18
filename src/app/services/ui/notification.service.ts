@@ -72,7 +72,7 @@ export class NotificationService {
     message: string,
     confirmText?: string,
     cancelText?: string,
-    options?: Pick<ConfirmDialogData, 'icon' | 'color'>
+    options?: Pick<ConfirmDialogData, 'icon' | 'color' | 'preserveLines'>
   ): Promise<boolean> {
     const dialogData: ConfirmDialogData = {
       title,

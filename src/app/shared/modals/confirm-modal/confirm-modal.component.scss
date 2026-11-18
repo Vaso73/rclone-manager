@@ -40,6 +40,11 @@
     }
 
     .modal-message {
+      &.preserve-lines {
+        white-space: pre-line;
+        text-align: start;
+        overflow-wrap: anywhere;
+      }
       font-weight: 400;
       color: var(--dim-color);
       line-height: 1.5;

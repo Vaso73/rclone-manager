@@ -2,10 +2,23 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
+  untracked,
   inject,
   linkedSignal,
   signal,
 } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { FileSystemService } from '../services/operations/file-system.service';
+import { SimpleWorkspaceManagementService } from './simple-workspace-management.service';
+import {
+  SimpleHistoryPlacesService,
+  HistoryPlace,
+  validHistoryRoot,
+} from './simple-history-places.service';
+import { SimpleHistoryWizardComponent } from './simple-history-wizard.component';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
@@ -57,6 +70,10 @@ type SimplePage = 'connections' | 'drives' | 'tasks' | 'history';
 @Component({
   selector: 'app-simple-workspace',
   imports: [
+    FormsModule,
+    MatFormFieldModule,
+    MatInputModule,
+    SimpleHistoryWizardComponent,
     WorkspaceShellComponent,
     TitlebarComponent,
     BannerComponent,
@@ -80,6 +97,36 @@ type SimplePage = 'connections' | 'drives' | 'tasks' | 'history';
 })
 export class SimpleWorkspaceComponent {
   readonly facade = inject(RemoteFacadeService);
+  private readonly management = inject(SimpleWorkspaceManagementService);
+  private readonly historyStore = inject(SimpleHistoryPlacesService);
+  private readonly files = inject(FileSystemService);
+  readonly historyView = signal<'restore' | 'locations' | 'runs'>('restore');
+  readonly historySections = computed(() =>
+    this.cardOrder.sorted(
+      this.backend.activeBackend(),
+      'history-navigation',
+      [
+        { key: 'restore', icon: 'clock-rotate-left', label: 'simple.manage.restoreFiles' },
+        { key: 'locations', icon: 'box-archive', label: 'simple.manage.historyPlaces' },
+        { key: 'runs', icon: 'check-list', label: 'simple.manage.runRecords' },
+      ] as const,
+      item => item.key
+    )
+  );
+  readonly showHiddenHistory = signal(false);
+  readonly addingHistoryPlace = signal(false);
+  readonly newHistoryRoot = signal('');
+  readonly restorePlace = signal('');
+  readonly validHistoryRoot = validHistoryRoot;
+  newHistoryName = '';
+  constructor() {
+    effect(() => {
+      const backend = this.backend.activeBackend(),
+        tasks = this.allTasks();
+      untracked(() => this.historyStore.remember(backend, tasks));
+    });
+  }
+
   readonly icons = inject(IconService);
   ready(task: SimpleTask): boolean {
     return simpleTaskReady(task, this.backend.isWindows());
@@ -90,6 +137,7 @@ export class SimpleWorkspaceComponent {
   volumeName = simpleVolumeName;
   jobProfile = profileOf;
   jobType(job: JobInfo): string {
+    if (job.group?.startsWith('restore/')) return 'simple.manage.restoreCopy';
     return (
       OPERATION_REGISTRY.find(op => op.key === job.job_type)?.typeLabel ??
       'simple.history.otherOperation'
@@ -145,13 +193,17 @@ export class SimpleWorkspaceComponent {
   }
   reorder(group: string, move: SimpleCardMove): void {
     const keys =
-      group === 'connections'
-        ? this.connections().map(remote => remote.name)
-        : group === 'drives'
-          ? this.driveTasks().map(simpleTaskKey)
-          : group === 'history'
-            ? this.historyTasks().map(simpleTaskKey)
-            : this.visibleTasks().map(simpleTaskKey);
+      group === 'history-navigation'
+        ? this.historySections().map(item => item.key)
+        : group === 'history-places'
+          ? this.historyPlaces().map(item => item.id)
+          : group === 'connections'
+            ? this.connections().map(remote => remote.name)
+            : group === 'drives'
+              ? this.driveTasks().map(simpleTaskKey)
+              : group === 'history'
+                ? this.historyTasks().map(simpleTaskKey)
+                : this.visibleTasks().map(simpleTaskKey);
     this.cardOrder.move(
       this.backend.activeBackend(),
       group === 'tasks' ? JSON.stringify(['tasks', this.selected()]) : group,
@@ -222,21 +274,38 @@ export class SimpleWorkspaceComponent {
   }
 
   async remove(task: SimpleTask): Promise<void> {
-    if (this.pending() || this.active(task)) return;
+    if (
+      this.pending() ||
+      this.active(task) ||
+      (task.operation === 'mount' && this.mounts.refreshing())
+    )
+      return;
     const backend = this.backend.activeBackend();
     this.pending.set(true);
     try {
       const accepted = await this.notifications.confirmModal(
-        'simple.tasks.delete',
-        this.translate.instant('simple.tasks.deleteConfirm', {
-          name: this.label(task),
-          remote: task.remote,
-          operation: this.translate.instant('simple.operations.' + task.operation),
-        }),
+        task.operation === 'mount' ? 'simple.manage.removeDisk' : 'simple.tasks.delete',
+        this.translate.instant(
+          task.operation === 'mount'
+            ? 'simple.manage.removeDiskConfirm'
+            : 'simple.tasks.deleteConfirm',
+          {
+            name: this.label(task),
+            remote: task.remote,
+            operation: this.translate.instant('simple.operations.' + task.operation),
+          }
+        ),
         'simple.tasks.delete',
         'common.cancel'
       );
-      if (!accepted || backend !== this.backend.activeBackend() || this.active(task)) return;
+      if (
+        !accepted ||
+        backend !== this.backend.activeBackend() ||
+        this.active(task) ||
+        (task.operation === 'mount' && this.mounts.refreshing())
+      )
+        return;
+      this.historyStore.remember(backend, this.allTasks());
       await this.facade.deleteTaskProfile(
         task.remote,
         task.operation,
@@ -259,6 +328,142 @@ export class SimpleWorkspaceComponent {
       simpleTaskKey
     )
   );
+  readonly historyPlaces = computed(() => {
+    const stored = this.historyStore.places(this.backend.activeBackend(), this.allTasks());
+    const liveOrder = this.historyTasks()
+      .map(task => stored.find(place => place.owner === task.remote && place.root === task.history))
+      .filter((place): place is HistoryPlace => !!place);
+    const unique = new Map([...liveOrder, ...stored].map(place => [place.id, place]));
+    return this.cardOrder.sorted(
+      this.backend.activeBackend(),
+      'history-places',
+      [...unique.values()],
+      place => place.id
+    );
+  });
+  readonly availableHistoryPlaces = computed(() =>
+    this.historyPlaces().filter(place => !place.hidden)
+  );
+  readonly visibleHistoryPlaces = computed(() =>
+    this.historyPlaces().filter(place => this.showHiddenHistory() || !place.hidden)
+  );
+  toggleHistoryPlace(place: HistoryPlace): void {
+    this.historyStore.toggleHidden(this.backend.activeBackend(), place.id);
+  }
+  browseHistory(place: HistoryPlace): void {
+    this.history.set({
+      remote: place.owner,
+      name: place.name,
+      operation: 'copy',
+      source: '',
+      destination: '',
+      history: place.root,
+      multipleSources: false,
+      config: { app: {}, rclone: {} },
+    });
+  }
+  async chooseHistoryRoot(): Promise<void> {
+    const backend = this.backend.activeBackend();
+    try {
+      const result = await this.files.selectPathWithNautilus({
+        mode: 'both',
+        selection: 'folders',
+        multi: false,
+        initialLocation: this.newHistoryRoot() || undefined,
+      });
+      if (backend === this.backend.activeBackend() && !result.cancelled && result.paths[0])
+        this.newHistoryRoot.set(result.paths[0]);
+    } catch (error) {
+      this.notifications.showError(error);
+    }
+  }
+  addHistoryPlace(): void {
+    const root = this.newHistoryRoot().trim();
+    if (!validHistoryRoot(root) || !this.newHistoryName.trim()) return;
+    if (
+      this.historyStore.add(
+        this.backend.activeBackend(),
+        this.newHistoryName,
+        root,
+        splitSimplePath(root).remote || this.backend.activeBackend()
+      )
+    ) {
+      this.addingHistoryPlace.set(false);
+      this.newHistoryName = '';
+      this.newHistoryRoot.set('');
+    }
+  }
+  async removeConnection(name: string): Promise<void> {
+    if (this.pending()) return;
+    const backend = this.backend.activeBackend();
+    this.pending.set(true);
+    try {
+      const review = await this.management.inspectConnection(name, backend);
+      if (backend !== this.backend.activeBackend()) return;
+      if (review.dependencies.length) {
+        const dependencies = review.dependencies
+          .map(item => {
+            const name =
+              item.kind === 'profile'
+                ? OPERATION_REGISTRY.reduce(
+                    (label, operation) =>
+                      label.replace(
+                        ` / ${operation.configKey} / `,
+                        ` / ${this.translate.instant(operation.actionLabel)} / `
+                      ),
+                    item.name
+                  )
+                : item.name;
+            return this.translate.instant('simple.manage.dependency.' + item.kind) + ': ' + name;
+          })
+          .join('\n');
+        await this.notifications.confirmModal(
+          'simple.manage.connectionInUse',
+          this.translate.instant('simple.manage.dependenciesHelp', { name, dependencies }),
+          '',
+          'common.close',
+          { preserveLines: true }
+        );
+        return;
+      }
+      const accepted = await this.notifications.confirmModal(
+        'simple.manage.removeConnection',
+        this.translate.instant('simple.manage.removeConnectionConfirm', { name }),
+        'simple.manage.removeConnection',
+        'common.cancel'
+      );
+      if (!accepted || backend !== this.backend.activeBackend()) return;
+      await this.management.removeConnection(name, backend, review.revision);
+      await this.facade.refreshAll();
+    } catch (error) {
+      this.notifications.showError(error);
+    } finally {
+      this.pending.set(false);
+    }
+  }
+  async removeRecord(job: JobInfo): Promise<void> {
+    if (this.pending() || job.status === JOB_STATUS.Running) return;
+    const backend = this.backend.activeBackend();
+    this.pending.set(true);
+    try {
+      const accepted = await this.notifications.confirmModal(
+        'simple.manage.removeRecord',
+        this.translate.instant('simple.manage.removeRecordConfirm', {
+          id: job.jobid,
+          name: this.jobProfile(job) || job.remote_name,
+        }),
+        'simple.manage.removeRecord',
+        'common.cancel'
+      );
+      if (!accepted || backend !== this.backend.activeBackend()) return;
+      await this.management.removeRecord(job, backend);
+      await this.facade.refreshAll();
+    } catch (error) {
+      this.notifications.showError(error);
+    } finally {
+      this.pending.set(false);
+    }
+  }
   readonly validEditor = computed(() => {
     const editor = this.editor();
     return editor?.backend === this.backend.activeBackend() &&
@@ -268,14 +473,12 @@ export class SimpleWorkspaceComponent {
   });
   readonly validHistory = computed(() => {
     const history = this.history();
-    return (
-      this.historyTasks().find(
-        task =>
-          task.remote === history?.remote &&
-          task.name === history.name &&
-          task.operation === history.operation
-      ) ?? null
-    );
+    return history &&
+      this.historyPlaces().some(
+        place => place.owner === history.remote && place.root === history.history
+      )
+      ? history
+      : null;
   });
 
   navigate(page: SimplePage): void {

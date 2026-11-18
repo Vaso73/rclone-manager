@@ -67,12 +67,23 @@ import { simpleMountPending } from './simple-profile.util';
           @if (volumeName()) {
             <span>{{ volumeName() }}</span>
           }
-          <span appPill size="xs" tone="dim">{{
-            (networkDrive() ? 'simple.drives.network' : 'simple.drives.local') | translate
-          }}</span>
-          <span appPill size="xs" tone="dim">{{
-            (readOnly() ? 'simple.drives.readOnly' : 'simple.drives.readWrite') | translate
-          }}</span>
+          @if (compact()) {
+            <span aria-hidden="true">·</span
+            ><span>{{
+              (networkDrive() ? 'simple.drives.network' : 'simple.drives.local') | translate
+            }}</span>
+            <span aria-hidden="true">·</span
+            ><span>{{
+              (readOnly() ? 'simple.drives.readOnly' : 'simple.drives.readWrite') | translate
+            }}</span>
+          } @else {
+            <span appPill size="xs" tone="dim">{{
+              (networkDrive() ? 'simple.drives.network' : 'simple.drives.local') | translate
+            }}</span>
+            <span appPill size="xs" tone="dim">{{
+              (readOnly() ? 'simple.drives.readOnly' : 'simple.drives.readWrite') | translate
+            }}</span>
+          }
         </div>
       }
     </section>

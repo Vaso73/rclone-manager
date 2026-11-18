@@ -27,6 +27,7 @@ describe('FileSystemService', () => {
   let backendServiceMock: {
     activeBackend: ReturnType<typeof vi.fn>;
     isWindows: ReturnType<typeof vi.fn>;
+    isLocalBackend: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -45,6 +46,7 @@ describe('FileSystemService', () => {
     backendServiceMock = {
       activeBackend: vi.fn().mockReturnValue('Local'),
       isWindows: vi.fn().mockReturnValue(false),
+      isLocalBackend: vi.fn().mockReturnValue(true),
     };
 
     TestBed.configureTestingModule({
@@ -66,6 +68,34 @@ describe('FileSystemService', () => {
     vi.restoreAllMocks();
   });
 
+  it('uses the app-host native folder dialog for restore even with an external backend', async () => {
+    Object.defineProperty(service, 'isTauri', { value: true, configurable: true });
+    backendServiceMock.activeBackend.mockReturnValue('Other');
+    backendServiceMock.isLocalBackend.mockReturnValue(false);
+    apiClientMock.invoke.mockResolvedValue('D:\\Recovered');
+    expect(await service.selectFolder(false, 'D:\\Recovered', true)).toBe('D:\\Recovered');
+    expect(apiClientMock.invoke).toHaveBeenCalledWith('get_folder_location', {
+      requireEmpty: false,
+      initialPath: 'D:\\Recovered',
+    });
+    expect(nautilusServiceMock.openFilePicker).not.toHaveBeenCalled();
+  });
+  it('does not present another computers filesystem as the restore destination in headless mode', async () => {
+    Object.defineProperty(service, 'isTauri', { value: false, configurable: true });
+    backendServiceMock.activeBackend.mockReturnValue('Other');
+    backendServiceMock.isLocalBackend.mockReturnValue(false);
+    expect(await service.selectFolder(false, undefined, true)).toBe('');
+    expect(nautilusServiceMock.openFilePicker).not.toHaveBeenCalled();
+    expect(apiClientMock.invoke).not.toHaveBeenCalled();
+  });
+  it('does not expose the external daemon filesystem as a mobile app-host destination', async () => {
+    Object.defineProperty(service, 'isTauri', { value: true, configurable: true });
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Android');
+    backendServiceMock.isLocalBackend.mockReturnValue(false);
+    expect(await service.selectFolder(false, undefined, true)).toBe('');
+    expect(nautilusServiceMock.openFilePicker).not.toHaveBeenCalled();
+    expect(apiClientMock.invoke).not.toHaveBeenCalled();
+  });
   it('should be created', () => {
     expect(service).toBeTruthy();
   });

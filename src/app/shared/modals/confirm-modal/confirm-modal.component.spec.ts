@@ -67,6 +67,14 @@ describe('ConfirmModalComponent', () => {
     expect(dialogRef.close).not.toHaveBeenCalled();
   });
 
+  it('preserves opted-in plain-text review lines without rendering file names as HTML', async () => {
+    await setup({ preserveLines: true, message: 'Source: <b>file</b>\nTarget: folder' });
+    const message = fixture.nativeElement.querySelector('.modal-message');
+    expect(message.classList.contains('preserve-lines')).toBe(true);
+    expect(message.textContent).toContain('\nTarget: folder');
+    expect(message.querySelector('b')).toBeNull();
+  });
+
   it('should cancel when the cancel button is clicked', async () => {
     await setup();
     fixture.nativeElement.querySelector('.cancel-btn').click();

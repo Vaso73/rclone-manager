@@ -294,6 +294,8 @@ pub async fn submit_job_with_options(
     mut metadata: JobMetadata,
     options: SubmitJobOptions,
 ) -> Result<JobSubmission, String> {
+    let launch_lock = app.state::<BackendManager>().workspace_operations.clone();
+    let launch_guard = launch_lock.read().await;
     let context = match options.backend {
         Some(backend) => JobContext::for_backend(&app, backend),
         None => JobContext::active(&app).await,
@@ -323,6 +325,7 @@ pub async fn submit_job_with_options(
             .bind_job_execution(&context.backend_name, execution, jobid)
             .await;
     }
+    drop(launch_guard);
     let output = if options.wait_for_completion {
         Some(
             monitor_job(context, metadata, jobid, app)

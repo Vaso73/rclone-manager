@@ -39,7 +39,7 @@
         >
       }
       <button matButton (click)="entry.IsDir ? open(entry) : restore(entry)" [disabled]="busy()">
-        {{ (entry.IsDir ? 'simple.history.open' : 'simple.history.restore') | translate }}
+        {{ (entry.IsDir ? 'simple.history.open' : 'simple.manage.restoreCopy') | translate }}
       </button>
     </div>
   } @empty {

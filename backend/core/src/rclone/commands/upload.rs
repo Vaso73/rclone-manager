@@ -44,7 +44,7 @@ pub struct UploadBatchParams {
 }
 
 // Upload jobs are local synthetic jobs, separate from rclone's job IDs.
-fn next_upload_jobid() -> u64 {
+pub(crate) fn next_local_jobid() -> u64 {
     static LAST_ID: AtomicU64 = AtomicU64::new(0);
     let now = chrono::Utc::now().timestamp_millis() as u64;
     let previous = LAST_ID
@@ -513,7 +513,7 @@ pub async fn execute_upload_batch(
     }
 
     let destination = build_full_path(&remote, &path);
-    let jobid = existing_jobid.unwrap_or_else(next_upload_jobid);
+    let jobid = existing_jobid.unwrap_or_else(next_local_jobid);
     let mut metadata = JobMetadata::new(
         remote.clone(),
         JobType::Upload,
@@ -1089,7 +1089,7 @@ mod tests {
     fn concurrent_uploads_have_distinct_javascript_safe_job_ids() {
         let mut ids = std::thread::scope(|scope| {
             let workers: Vec<_> = (0..4)
-                .map(|_| scope.spawn(|| (0..100).map(|_| next_upload_jobid()).collect::<Vec<_>>()))
+                .map(|_| scope.spawn(|| (0..100).map(|_| next_local_jobid()).collect::<Vec<_>>()))
                 .collect();
             workers
                 .into_iter()

@@ -343,3 +343,31 @@ summary {
     padding-inline: var(--space-xs);
   }
 }
+
+.history-navigation {
+  width: 100%;
+}
+.history-run {
+  flex-wrap: wrap;
+}
+.task-row mat-card-actions .run-action {
+  min-height: var(--space-2xl);
+  height: var(--space-2xl);
+}
+.action-button[data-destructive="true"]:is(:hover, :focus-visible) {
+  color: var(--warn-color);
+}
+@media (pointer: coarse) {
+  .action-button,
+  .task-row mat-card-actions .run-action {
+    min-width: calc(var(--space-2xl) + var(--space-sm) + var(--space-xxs));
+    min-height: calc(var(--space-2xl) + var(--space-sm) + var(--space-xxs));
+  }
+}
+
+@media (pointer: coarse) {
+  .connection-choice {
+    height: auto;
+    min-height: calc(var(--space-2xl) + var(--space-sm) + var(--space-xxs));
+  }
+}
