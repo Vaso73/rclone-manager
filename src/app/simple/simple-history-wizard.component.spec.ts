@@ -50,7 +50,13 @@ describe('History wizard actual template and asynchronous actions', () => {
       providers: [
         provideHttpClient(),
         provideTranslateService(),
-        { provide: BackendService, useValue: { activeBackend: backend } },
+        {
+          provide: BackendService,
+          useValue: {
+            activeBackend: backend,
+            isLocalBackend: (): boolean => backend() === 'Local',
+          },
+        },
         { provide: FileSystemService, useValue: { selectFolder: picker, openInFiles: vi.fn() } },
         { provide: NotificationService, useValue: { confirmModal: confirm, showError: vi.fn() } },
         { provide: RemoteFileOperationsService, useValue: { getRemotePaths: list } },
@@ -172,7 +178,9 @@ describe('History wizard actual template and asynchronous actions', () => {
       size: 16,
       modified: entry.ModTime,
     });
-    expect(f.nativeElement.textContent).toContain('file (1).txt');
+    expect((f.nativeElement.querySelector('input[readonly]') as HTMLInputElement).value).toContain(
+      'file (1).txt'
+    );
   });
   it('restores only to the destination shown in confirmation, even if state changes while pending', async () => {
     const f = await ready(),
@@ -226,6 +234,41 @@ describe('History wizard actual template and asynchronous actions', () => {
     c.busy.set(true);
     c.cancelSearch();
     expect(c.partial()).toBe(true);
+  });
+  it.each([
+    ['D:\\Recovered\\file.exe', 'D:\\Recovered\\'],
+    ['/file.txt', '/'],
+    ['\\\\server\\share\\file.txt', '\\\\server\\share\\'],
+  ])(
+    'opens only the containing directory for %s, never the restored file',
+    async (path, directory) => {
+      const f = await ready(),
+        c = f.componentInstance;
+      c.result.set({ jobId: 7, destination: path, size: 16, hashType: null });
+      await c.openResult();
+      expect(TestBed.inject(FileSystemService).openInFiles).toHaveBeenCalledExactlyOnceWith(
+        directory,
+        true
+      );
+    }
+  );
+  it('shows a selectable result path but no misleading open action for an external headless host', async () => {
+    backend.set('Other');
+    const f = await ready(),
+      c = f.componentInstance;
+    c.result.set({
+      jobId: 7,
+      destination: '/app-host/restored/file.txt',
+      size: 16,
+      hashType: null,
+    });
+    await f.whenStable();
+    expect((f.nativeElement.querySelector('input[readonly]') as HTMLInputElement).value).toBe(
+      '/app-host/restored/file.txt'
+    );
+    expect(c.canOpenResult()).toBe(false);
+    await c.openResult();
+    expect(TestBed.inject(FileSystemService).openInFiles).not.toHaveBeenCalled();
   });
   it('failed restore never claims success', async () => {
     const f = await ready(),

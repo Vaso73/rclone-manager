@@ -4979,7 +4979,7 @@
       "sizeVerified": "Overená veľkosť: {{size}} B",
       "hashVerified": "Kontrolný súčet {{type}} sa zhoduje.",
       "hashUnavailable": "Veľkosť je overená. Archív neposkytol kontrolný súčet; zhoda hashu nebola potvrdená.",
-      "openRestored": "Otvoriť obnovenú kópiu",
+      "openRestored": "Otvoriť cieľový priečinok",
       "dependency": {
         "connection": "Pripojenie",
         "profile": "Uložený profil",
@@ -4990,7 +4990,8 @@
       },
       "destinationHost": "Cieľ je priečinok v počítači, na ktorom beží aplikácia. Cestu môžeš zadať aj ručne.",
       "missingConnection": "Chýba pripojenie",
-      "missingConnectionHelp": "Pripojenie k archívu chýba. Obnov ho v Pripojeniach. Odstránenie pripojenia nemaže archívne súbory."
+      "missingConnectionHelp": "Pripojenie k archívu chýba. Obnov ho v Pripojeniach. Odstránenie pripojenia nemaže archívne súbory.",
+      "restoredPath": "Cesta k obnovenej kópii"
     }
   }
 }

@@ -4979,7 +4979,7 @@
       "sizeVerified": "Verified size: {{size}} B",
       "hashVerified": "The {{type}} checksum matches.",
       "hashUnavailable": "Size is verified. The archive supplied no checksum; a hash match was not confirmed.",
-      "openRestored": "Open restored copy",
+      "openRestored": "Открыть папку назначения",
       "dependency": {
         "connection": "Connection",
         "profile": "Saved profile",
@@ -4990,7 +4990,8 @@
       },
       "destinationHost": "Папка назначения находится на компьютере, где запущено приложение. Путь также можно ввести вручную.",
       "missingConnection": "Connection missing",
-      "missingConnectionHelp": "The archive connection is missing. Add it again in Connections. Removing a connection does not delete archived files."
+      "missingConnectionHelp": "The archive connection is missing. Add it again in Connections. Removing a connection does not delete archived files.",
+      "restoredPath": "Restored copy path"
     }
   }
 }

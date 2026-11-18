@@ -168,15 +168,17 @@ export class FileSystemService extends TauriBaseService {
   /**
    * Open a path in the system file manager
    */
-  async openInFiles(path: string): Promise<void> {
+  async openInFiles(path: string, hostFilesystem = false): Promise<void> {
     if (!path) return;
+    if (hostFilesystem && !this.backendService.isLocalBackend() && (!this.isTauri || isMobile()))
+      return;
 
     if (!this.isTauri) {
       const { remote, remainder } = this.pathService.splitLocalPath(path);
       return this.nautilusService.newNautilusWindow(remote, remainder);
     }
 
-    if (!this.pathService.isTrulyLocalPath(path) && !path.startsWith('saf://')) {
+    if (!hostFilesystem && !this.pathService.isTrulyLocalPath(path) && !path.startsWith('saf://')) {
       const { remote, path: relativePath } = this.pathService.splitFsPath(path);
       if (remote) {
         return this.nautilusService.newNautilusWindow(remote, relativePath);

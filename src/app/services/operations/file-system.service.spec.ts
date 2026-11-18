@@ -96,6 +96,21 @@ describe('FileSystemService', () => {
     expect(nautilusServiceMock.openFilePicker).not.toHaveBeenCalled();
     expect(apiClientMock.invoke).not.toHaveBeenCalled();
   });
+  it('opens an app-host folder natively without resolving it on the selected external backend', async () => {
+    Object.defineProperty(service, 'isTauri', { value: true, configurable: true });
+    backendServiceMock.activeBackend.mockReturnValue('Other');
+    backendServiceMock.isLocalBackend.mockReturnValue(false);
+    await service.openInFiles('D:\\Recovered\\', true);
+    expect(apiClientMock.invoke).toHaveBeenCalledWith('open_in_files', { path: 'D:\\Recovered\\' });
+    expect(nautilusServiceMock.newNautilusWindow).not.toHaveBeenCalled();
+  });
+  it('never opens an app-host restore folder through another computers RC filesystem', async () => {
+    Object.defineProperty(service, 'isTauri', { value: false, configurable: true });
+    backendServiceMock.isLocalBackend.mockReturnValue(false);
+    await service.openInFiles('/app-host/restored/', true);
+    expect(nautilusServiceMock.newNautilusWindow).not.toHaveBeenCalled();
+    expect(apiClientMock.invoke).not.toHaveBeenCalled();
+  });
   it('should be created', () => {
     expect(service).toBeTruthy();
   });

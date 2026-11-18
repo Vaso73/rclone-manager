@@ -16,6 +16,7 @@ import { MatIcon } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { TranslatePipe, TranslateService } from '@ngx-translate/core';
+import { isHeadlessMode, isMobile } from '../services/infrastructure/platform/api-client.service';
 import { BackendService } from '../services/infrastructure/system/backend.service';
 import { RemoteFileOperationsService } from '../services/remote/remote-file-operations.service';
 import { FileSystemService } from '../services/operations/file-system.service';
@@ -53,6 +54,9 @@ export class SimpleHistoryWizardComponent implements OnDestroy {
   private readonly notifications = inject(NotificationService);
   private readonly translate = inject(TranslateService);
   private readonly management = inject(SimpleWorkspaceManagementService);
+  readonly canOpenResult = computed(
+    () => this.backend.isLocalBackend() || (!isHeadlessMode() && !isMobile())
+  );
   readonly selectedPlace = signal('');
   readonly place = computed(() => this.places().find(place => place.id === this.selectedPlace()));
   readonly step = signal(0);
@@ -258,6 +262,8 @@ export class SimpleHistoryWizardComponent implements OnDestroy {
   }
   async openResult(): Promise<void> {
     const path = this.result()?.destination;
-    if (path) await this.files.openInFiles(path);
+    if (!path || !this.canOpenResult()) return;
+    const separator = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+    if (separator >= 0) await this.files.openInFiles(path.slice(0, separator + 1), true);
   }
 }

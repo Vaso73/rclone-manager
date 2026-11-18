@@ -4979,7 +4979,7 @@
       "sizeVerified": "Verified size: {{size}} B",
       "hashVerified": "The {{type}} checksum matches.",
       "hashUnavailable": "Size is verified. The archive supplied no checksum; a hash match was not confirmed.",
-      "openRestored": "Open restored copy",
+      "openRestored": "開啟目標資料夾",
       "dependency": {
         "connection": "Connection",
         "profile": "Saved profile",
@@ -4990,7 +4990,8 @@
       },
       "destinationHost": "目標是執行此應用程式的電腦上的資料夾。你也可以手動輸入路徑。",
       "missingConnection": "Connection missing",
-      "missingConnectionHelp": "The archive connection is missing. Add it again in Connections. Removing a connection does not delete archived files."
+      "missingConnectionHelp": "The archive connection is missing. Add it again in Connections. Removing a connection does not delete archived files.",
+      "restoredPath": "Restored copy path"
     }
   }
 }

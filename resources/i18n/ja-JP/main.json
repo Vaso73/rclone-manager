@@ -4979,7 +4979,7 @@
       "sizeVerified": "Verified size: {{size}} B",
       "hashVerified": "The {{type}} checksum matches.",
       "hashUnavailable": "Size is verified. The archive supplied no checksum; a hash match was not confirmed.",
-      "openRestored": "Open restored copy",
+      "openRestored": "復元先フォルダーを開く",
       "dependency": {
         "connection": "Connection",
         "profile": "Saved profile",
@@ -4990,7 +4990,8 @@
       },
       "destinationHost": "保存先はこのアプリを実行しているコンピューターのフォルダーです。パスを手動で入力することもできます。",
       "missingConnection": "Connection missing",
-      "missingConnectionHelp": "The archive connection is missing. Add it again in Connections. Removing a connection does not delete archived files."
+      "missingConnectionHelp": "The archive connection is missing. Add it again in Connections. Removing a connection does not delete archived files.",
+      "restoredPath": "Restored copy path"
     }
   }
 }

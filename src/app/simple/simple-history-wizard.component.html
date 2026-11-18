@@ -129,7 +129,10 @@
     @if (result(); as restored) {
       <div class="detail-section" role="status">
         <strong>{{ 'simple.manage.restored' | translate }}</strong>
-        <p>{{ restored.destination }}</p>
+        <mat-form-field
+          ><mat-label>{{ 'simple.manage.restoredPath' | translate }}</mat-label>
+          <input matInput readonly [value]="restored.destination" />
+        </mat-form-field>
         <p>{{ 'simple.manage.sizeVerified' | translate: { size: restored.size } }}</p>
         <p>
           {{
@@ -138,9 +141,11 @@
               : ('simple.manage.hashUnavailable' | translate)
           }}
         </p>
-        <button matButton (click)="openResult()">
-          {{ 'simple.manage.openRestored' | translate }}
-        </button>
+        @if (canOpenResult()) {
+          <button matButton (click)="openResult()">
+            {{ 'simple.manage.openRestored' | translate }}
+          </button>
+        }
       </div>
     }
   }
