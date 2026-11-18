@@ -17,6 +17,7 @@ import { IconService } from '../services/ui/icon.service';
 import { InterfaceModeService } from './interface-mode.service';
 import { SimpleWorkspaceComponent } from './simple-workspace.component';
 import { SimpleTaskEditorComponent } from './simple-task-editor.component';
+import { SimpleHistoryPlacesService } from './simple-history-places.service';
 import { SimpleWorkspaceManagementService } from './simple-workspace-management.service';
 import { SimpleHistoryComponent } from './simple-history.component';
 import { MountManagementService } from '../services/operations/mount-management.service';
@@ -126,6 +127,7 @@ describe('simple workspace actions', () => {
           provide: RemoteFacadeService,
           useValue: {
             refreshAll,
+            loading: signal(false),
             jobs: signal([]),
             remoteSummaries: signal([{ name: 'NAS', type: 'sftp' }]),
             getRemoteSettings: (): typeof settings => settings,
@@ -279,6 +281,16 @@ describe('simple workspace actions', () => {
     });
     await c.remove(task);
     expect(removeProfile).not.toHaveBeenCalled();
+  });
+  it('marks only retained roots with missing connections unavailable, without dropping local archives', () => {
+    const store = TestBed.inject(SimpleHistoryPlacesService);
+    store.add('Local', 'Retained', 'Removed:history', 'Removed');
+    store.add('Local', 'Local archive', 'D:\\History', 'Local');
+    const c = TestBed.runInInjectionContext(() => new SimpleWorkspaceComponent());
+    expect(c.historyPlaces().find(place => place.name === 'Retained')?.unavailable).toBe(true);
+    expect(c.historyPlaces().find(place => place.name === 'Local archive')?.unavailable).toBe(
+      false
+    );
   });
   it('inspects connections and refuses in-use, cancelled and stale removals', async () => {
     const c = TestBed.runInInjectionContext(() => new SimpleWorkspaceComponent());

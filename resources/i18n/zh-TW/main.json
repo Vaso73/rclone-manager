@@ -4988,7 +4988,9 @@
         "serve": "Sharing",
         "job": "Active run"
       },
-      "destinationHost": "目標是執行此應用程式的電腦上的資料夾。你也可以手動輸入路徑。"
+      "destinationHost": "目標是執行此應用程式的電腦上的資料夾。你也可以手動輸入路徑。",
+      "missingConnection": "Connection missing",
+      "missingConnectionHelp": "The archive connection is missing. Add it again in Connections. Removing a connection does not delete archived files."
     }
   }
 }

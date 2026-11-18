@@ -4988,7 +4988,9 @@
         "serve": "Sharing",
         "job": "Active run"
       },
-      "destinationHost": "保存先はこのアプリを実行しているコンピューターのフォルダーです。パスを手動で入力することもできます。"
+      "destinationHost": "保存先はこのアプリを実行しているコンピューターのフォルダーです。パスを手動で入力することもできます。",
+      "missingConnection": "Connection missing",
+      "missingConnectionHelp": "The archive connection is missing. Add it again in Connections. Removing a connection does not delete archived files."
     }
   }
 }

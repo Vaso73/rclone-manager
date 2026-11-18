@@ -4988,7 +4988,9 @@
         "serve": "Sharing",
         "job": "Active run"
       },
-      "destinationHost": "La destination est un dossier de l’ordinateur sur lequel cette application s’exécute. Tu peux aussi saisir le chemin manuellement."
+      "destinationHost": "La destination est un dossier de l’ordinateur sur lequel cette application s’exécute. Tu peux aussi saisir le chemin manuellement.",
+      "missingConnection": "Connection missing",
+      "missingConnectionHelp": "The archive connection is missing. Add it again in Connections. Removing a connection does not delete archived files."
     }
   }
 }

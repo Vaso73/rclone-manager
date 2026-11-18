@@ -4988,7 +4988,9 @@
         "serve": "Sharing",
         "job": "Active run"
       },
-      "destinationHost": "Папка призначення розташована на комп’ютері, де працює застосунок. Шлях також можна ввести вручну."
+      "destinationHost": "Папка призначення розташована на комп’ютері, де працює застосунок. Шлях також можна ввести вручну.",
+      "missingConnection": "Connection missing",
+      "missingConnectionHelp": "The archive connection is missing. Add it again in Connections. Removing a connection does not delete archived files."
     }
   }
 }

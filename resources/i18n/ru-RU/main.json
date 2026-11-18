@@ -4988,7 +4988,9 @@
         "serve": "Sharing",
         "job": "Active run"
       },
-      "destinationHost": "Папка назначения находится на компьютере, где запущено приложение. Путь также можно ввести вручную."
+      "destinationHost": "Папка назначения находится на компьютере, где запущено приложение. Путь также можно ввести вручную.",
+      "missingConnection": "Connection missing",
+      "missingConnectionHelp": "The archive connection is missing. Add it again in Connections. Removing a connection does not delete archived files."
     }
   }
 }

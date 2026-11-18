@@ -4988,7 +4988,9 @@
         "serve": "Zdieľanie",
         "job": "Aktívny beh"
       },
-      "destinationHost": "Cieľ je priečinok v počítači, na ktorom beží aplikácia. Cestu môžeš zadať aj ručne."
+      "destinationHost": "Cieľ je priečinok v počítači, na ktorom beží aplikácia. Cestu môžeš zadať aj ručne.",
+      "missingConnection": "Chýba pripojenie",
+      "missingConnectionHelp": "Pripojenie k archívu chýba. Obnov ho v Pripojeniach. Odstránenie pripojenia nemaže archívne súbory."
     }
   }
 }

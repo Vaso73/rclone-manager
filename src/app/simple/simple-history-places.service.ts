@@ -8,6 +8,7 @@ export interface HistoryPlace {
   owner: string;
   root: string;
   hidden: boolean;
+  unavailable?: boolean;
 }
 
 export function historyPlaceId(owner: string, root: string): string {

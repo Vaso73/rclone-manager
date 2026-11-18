@@ -4988,7 +4988,9 @@
         "serve": "Sharing",
         "job": "Active run"
       },
-      "destinationHost": "El destino es una carpeta del equipo que ejecuta esta aplicación. También puedes introducir la ruta manualmente."
+      "destinationHost": "El destino es una carpeta del equipo que ejecuta esta aplicación. También puedes introducir la ruta manualmente.",
+      "missingConnection": "Connection missing",
+      "missingConnectionHelp": "The archive connection is missing. Add it again in Connections. Removing a connection does not delete archived files."
     }
   }
 }

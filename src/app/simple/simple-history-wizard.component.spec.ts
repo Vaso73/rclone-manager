@@ -94,6 +94,25 @@ describe('History wizard actual template and asynchronous actions', () => {
     expect(list).toHaveBeenCalledExactlyOnceWith('NAS:history', '', {}, 'dashboard');
     expect(c.filesFound()).toEqual(['file.txt']);
   });
+  it('keeps a retained missing connection visible but cannot search or restore through it', async () => {
+    const f = await ready(),
+      c = f.componentInstance;
+    f.componentRef.setInput('places', [{ ...place, unavailable: true }]);
+    c.step.set(0);
+    f.detectChanges();
+    await f.whenStable();
+    expect(f.nativeElement.textContent).toContain('simple.manage.missingConnectionHelp');
+    c.step.set(0);
+    c.next();
+    expect(c.step()).toBe(0);
+    c.query = 'file';
+    await c.search();
+    c.destination.set('D:\\Restored');
+    await c.restore();
+    expect(confirm).not.toHaveBeenCalled();
+    expect(list).not.toHaveBeenCalled();
+    expect(restore).not.toHaveBeenCalled();
+  });
   it('renders native picker result immediately without another click', async () => {
     let complete!: (path: string) => void;
     picker.mockReturnValue(new Promise<string>(resolve => (complete = resolve)));

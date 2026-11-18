@@ -4988,7 +4988,9 @@
         "serve": "Sharing",
         "job": "Active run"
       },
-      "destinationHost": "O destino é uma pasta no computador que executa este aplicativo. Você também pode digitar o caminho manualmente."
+      "destinationHost": "O destino é uma pasta no computador que executa este aplicativo. Você também pode digitar o caminho manualmente.",
+      "missingConnection": "Connection missing",
+      "missingConnectionHelp": "The archive connection is missing. Add it again in Connections. Removing a connection does not delete archived files."
     }
   }
 }

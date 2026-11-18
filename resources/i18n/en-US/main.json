@@ -4988,7 +4988,9 @@
         "serve": "Sharing",
         "job": "Active run"
       },
-      "destinationHost": "The destination is a folder on the computer running this app. You can also enter its path manually."
+      "destinationHost": "The destination is a folder on the computer running this app. You can also enter its path manually.",
+      "missingConnection": "Connection missing",
+      "missingConnectionHelp": "The archive connection is missing. Add it again in Connections. Removing a connection does not delete archived files."
     }
   }
 }

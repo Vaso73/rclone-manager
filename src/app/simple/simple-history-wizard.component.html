@@ -18,14 +18,18 @@
         class="history-choice"
         (click)="choosePlace(item.id)"
         [attr.aria-pressed]="selectedPlace() === item.id"
+        [title]="item.unavailable ? ('simple.manage.missingConnectionHelp' | translate) : item.root"
       >
         <mat-icon
           [svgIcon]="selectedPlace() === item.id ? 'check-circle' : 'box-archive'"
         ></mat-icon>
         <span
           ><strong>{{ item.name }}</strong
-          ><span class="truncate" [title]="item.root">{{ item.root }}</span></span
-        >
+          ><span class="truncate" [title]="item.root">{{ item.root }}</span>
+          @if (item.unavailable) {
+            <span>{{ 'simple.manage.missingConnectionHelp' | translate }}</span>
+          }
+        </span>
       </button>
     } @empty {
       <div class="empty-state">
@@ -159,7 +163,11 @@
         matButton="outlined"
         (click)="next()"
         [disabled]="
-          busy() || !place() || (step() === 1 && !selectedFile()) || (step() === 2 && !chosen())
+          busy() ||
+          !place() ||
+          place()?.unavailable ||
+          (step() === 1 && !selectedFile()) ||
+          (step() === 2 && !chosen())
         "
       >
         {{ 'simple.manage.continue' | translate }}

@@ -337,7 +337,16 @@ export class SimpleWorkspaceComponent {
     return this.cardOrder.sorted(
       this.backend.activeBackend(),
       'history-places',
-      [...unique.values()],
+      [...unique.values()].map(place => {
+        const remote = splitSimplePath(place.root).remote;
+        return {
+          ...place,
+          unavailable:
+            !this.facade.loading() &&
+            !!remote &&
+            !this.connections().some(item => item.name === remote),
+        };
+      }),
       place => place.id
     );
   });

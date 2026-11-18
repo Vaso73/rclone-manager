@@ -372,6 +372,11 @@
                   <div>
                     <strong class="truncate" [title]="place.name">{{ place.name }}</strong
                     ><span class="truncate" [title]="place.root">{{ place.root }}</span>
+                    @if (place.unavailable) {
+                      <span [title]="'simple.manage.missingConnectionHelp' | translate">{{
+                        'simple.manage.missingConnection' | translate
+                      }}</span>
+                    }
                     @if (place.hidden) {
                       <span>{{ 'simple.manage.hidden' | translate }}</span>
                     }
@@ -381,6 +386,10 @@
                   <button
                     matButton
                     (click)="restorePlace.set(place.id); historyView.set('restore')"
+                    [disabled]="place.unavailable"
+                    [title]="
+                      place.unavailable ? ('simple.manage.missingConnectionHelp' | translate) : ''
+                    "
                   >
                     {{ 'simple.manage.restoreFiles' | translate }}
                   </button>

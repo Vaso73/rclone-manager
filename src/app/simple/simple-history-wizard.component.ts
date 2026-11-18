@@ -137,7 +137,7 @@ export class SimpleHistoryWizardComponent implements OnDestroy {
   }
   async search(): Promise<void> {
     const place = this.place();
-    if (!place || !this.query.trim() || this.busy()) return;
+    if (!place || place.unavailable || !this.query.trim() || this.busy()) return;
     const generation = ++this.generation,
       backend = this.backend.activeBackend();
     const cancelled = (): boolean =>
@@ -175,7 +175,7 @@ export class SimpleHistoryWizardComponent implements OnDestroy {
   }
   next(): void {
     if (this.busy() || this.restoring()) return;
-    if (this.step() === 0 && this.place()) this.step.set(1);
+    if (this.step() === 0 && this.place() && !this.place()?.unavailable) this.step.set(1);
     else if (this.step() === 1 && this.selectedFile()) this.step.set(2);
     else if (this.step() === 2 && this.chosen()) this.step.set(3);
   }
@@ -195,7 +195,8 @@ export class SimpleHistoryWizardComponent implements OnDestroy {
   async restore(): Promise<void> {
     const place = this.place(),
       version = this.chosen();
-    if (!place || !version || !this.destination().trim() || this.restoring()) return;
+    if (!place || place.unavailable || !version || !this.destination().trim() || this.restoring())
+      return;
     const backendName = this.backend.activeBackend(),
       generation = this.generation,
       destination = this.destination().trim();
