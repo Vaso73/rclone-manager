@@ -196,6 +196,37 @@ describe('History wizard actual template and asynchronous actions', () => {
     await c.restore();
     expect(restore).not.toHaveBeenCalled();
   });
+  it('can restore another version after returning from a completed copy without stale success', async () => {
+    const f = await ready(),
+      c = f.componentInstance;
+    c.destination.set('D:\\Restored');
+    await c.restore();
+    expect(c.result()).not.toBeNull();
+    c.back();
+    await f.whenStable();
+    expect(c.result()).toBeNull();
+    expect(c.partial()).toBe(false);
+    c.next();
+    await f.whenStable();
+    expect(
+      (f.nativeElement.querySelector('.wizard-actions button:last-child') as HTMLButtonElement)
+        .disabled
+    ).toBe(false);
+    await c.restore();
+    expect(restore).toHaveBeenCalledTimes(2);
+  });
+  it('resets old file choices for another archive and reports cancellation even before finding a file', async () => {
+    const f = await ready(),
+      c = f.componentInstance;
+    c.choosePlace(place.id);
+    expect(c.selectedFile()).toBe('');
+    expect(c.selectedPath()).toBe('');
+    expect(c.searched()).toBe(false);
+    expect(c.partial()).toBe(false);
+    c.busy.set(true);
+    c.cancelSearch();
+    expect(c.partial()).toBe(true);
+  });
   it('failed restore never claims success', async () => {
     const f = await ready(),
       c = f.componentInstance;

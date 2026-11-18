@@ -112,8 +112,7 @@ export class SimpleHistoryWizardComponent implements OnDestroy {
         this.busy.set(false);
         this.restoring.set(false);
         this.step.set(0);
-        this.versions.set([]);
-        this.result.set(null);
+        this.resetSelection();
         this.selectedPlace.set(
           places.find(place => place.id === requested)?.id ?? places[0]?.id ?? ''
         );
@@ -126,14 +125,23 @@ export class SimpleHistoryWizardComponent implements OnDestroy {
   choosePlace(id: string): void {
     this.cancelSearch();
     this.selectedPlace.set(id);
+    this.resetSelection();
+  }
+  private resetSelection(): void {
     this.versions.set([]);
+    this.selectedFile.set('');
+    this.selectedPath.set('');
     this.searched.set(false);
+    this.partial.set(false);
+    this.folders.set(0);
     this.result.set(null);
+    this.error.set('');
   }
   cancelSearch(): void {
+    const wasBusy = this.busy();
     this.generation++;
     this.busy.set(false);
-    if (this.versions().length) this.partial.set(true);
+    if (wasBusy) this.partial.set(true);
   }
   async search(): Promise<void> {
     const place = this.place();
@@ -182,6 +190,8 @@ export class SimpleHistoryWizardComponent implements OnDestroy {
   back(): void {
     if (!this.restoring()) {
       this.cancelSearch();
+      this.result.set(null);
+      this.error.set('');
       this.step.update(step => Math.max(0, step - 1));
     }
   }
