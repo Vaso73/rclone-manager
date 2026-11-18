@@ -3238,6 +3238,7 @@
       "transportFailed": "Impossible de joindre rclone : {{error}}"
     },
     "mount": {
+      "shuttingDown": "Impossible de connecter un disque pendant la fermeture de l’application.",
       "pointEmpty": "Le point de montage ne peut être vide",
       "alreadyInUse": "Le point de montage {{mountPoint}} est déjà utilisé par le dépôt distant {{remote}}",
       "configIncomplete": "Configuration du montage incomplète pour le profil '{{profile}}'",

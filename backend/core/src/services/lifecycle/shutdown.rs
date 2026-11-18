@@ -39,6 +39,13 @@ pub async fn handle_shutdown(app_handle: AppHandle) {
     state.run(shutdown(app_handle)).await;
 }
 
+/// Starting cleanup does not permit the host to exit. A second close request
+/// must wait for the same completed cleanup, including pending FUSE unmounts.
+pub fn is_shutdown_complete(app: &AppHandle) -> bool {
+    app.try_state::<ShutdownState>()
+        .is_some_and(|state| state.0.get().is_some())
+}
+
 async fn shutdown(app_handle: AppHandle) {
     info!("Beginning shutdown sequence...");
 
@@ -77,15 +84,16 @@ async fn shutdown(app_handle: AppHandle) {
         watcher_manager.stop_all().await;
     }
 
-    // Run cleanup tasks concurrently with individual timeouts.
-    let (unmount_result, stop_jobs_result, stop_serves_result) = tokio::join!(
-        tokio::time::timeout(
-            tokio::time::Duration::from_secs(5),
-            unmount_all_remotes(
-                app_handle.clone(),
-                crate::rclone::commands::common::OperationContext::Shutdown,
-            ),
-        ),
+    crate::services::lifecycle::auto_updater::stop_auto_updater(&app_handle);
+
+    match scheduler_state.stop().await {
+        Ok(()) => info!("Cron scheduler stopped."),
+        Err(e) => error!("Failed to stop cron scheduler: {e}"),
+    }
+
+    // Stop producers before removing mount points: a pending mount job must not
+    // create another filesystem after the unmount batch has already finished.
+    let (stop_jobs_result, stop_serves_result) = tokio::join!(
         tokio::time::timeout(
             tokio::time::Duration::from_secs(5),
             stop_all_active_jobs(app_handle.clone()),
@@ -99,17 +107,16 @@ async fn shutdown(app_handle: AppHandle) {
         ),
     );
 
-    crate::services::lifecycle::auto_updater::stop_auto_updater(&app_handle);
-
-    match scheduler_state.stop().await {
-        Ok(()) => info!("Cron scheduler stopped."),
-        Err(e) => error!("Failed to stop cron scheduler: {e}"),
-    }
-
-    if let Ok(Err(e)) = unmount_result {
+    // Windows rclone can spend ten seconds releasing EACH mount. Do not abandon
+    // that work after five seconds and stop the engine underneath it. The batch
+    // owns its deadline and waits for any individual mount/unmount in progress.
+    if let Err(e) = unmount_all_remotes(
+        app_handle.clone(),
+        crate::rclone::commands::common::OperationContext::Shutdown,
+    )
+    .await
+    {
         error!("Failed to unmount remotes: {e}");
-    } else if unmount_result.is_err() {
-        error!("Unmount operation timed out");
     }
 
     if let Ok(Err(e)) = stop_jobs_result {
@@ -229,7 +236,7 @@ pub async fn stop_all_active_jobs_with_notice(app: AppHandle) {
 
 #[cfg(test)]
 mod tests {
-    use super::ShutdownState;
+    use super::{ShutdownState, is_shutdown_complete};
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[tokio::test]
@@ -246,5 +253,137 @@ mod tests {
         });
         state.run(cleanup()).await;
         assert_eq!(completed.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn host_exit_is_allowed_only_after_cleanup_finishes() {
+        let app = crate::context::AppHandle::default();
+        assert!(!is_shutdown_complete(&app));
+        app.manage(ShutdownState::default());
+        let state = app.state::<ShutdownState>();
+        state
+            .run(async {
+                assert!(!is_shutdown_complete(&app));
+                tokio::task::yield_now().await;
+                assert!(!is_shutdown_complete(&app));
+            })
+            .await;
+        assert!(is_shutdown_complete(&app));
+    }
+
+    #[tokio::test]
+    async fn cancelled_cleanup_does_not_authorize_host_exit() {
+        use futures::FutureExt;
+        let app = crate::context::AppHandle::default();
+        app.manage(ShutdownState::default());
+        let state = app.state::<ShutdownState>();
+        assert!(state.run(std::future::pending()).now_or_never().is_none());
+        assert!(!is_shutdown_complete(&app));
+        state.run(async {}).await;
+        assert!(is_shutdown_complete(&app));
+    }
+
+    #[cfg(not(feature = "librclone"))]
+    #[tokio::test]
+    async fn full_shutdown_does_not_stop_engine_or_exit_during_a_slow_unmount() {
+        use crate::context::{AppHandle, Host, ProductInfo};
+        use crate::rclone::backend::{BackendManager, http_transport::RcHttpBackend};
+        use crate::services::{automation::engine::AutomationScheduler, paths::AppPaths};
+        use crate::utils::{
+            constants::LOCAL_BACKEND_NAME,
+            types::state::{EngineState, RcApiEngine, RcloneState},
+        };
+        use std::sync::{Arc, atomic::AtomicBool};
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        struct TestHost(Arc<AtomicBool>);
+        #[async_trait::async_trait]
+        impl Host for TestHost {
+            fn resolve_paths(&self, _: &AppHandle) -> Result<AppPaths, String> {
+                Err("No real filesystem is used in this shutdown test".into())
+            }
+            fn restart(&self, _: &AppHandle) -> Result<(), String> {
+                unreachable!()
+            }
+            fn cleanup(&self) {
+                self.0.store(true, Ordering::SeqCst);
+            }
+        }
+
+        let cleaned = Arc::new(AtomicBool::new(false));
+        let app = AppHandle::new(Arc::new(TestHost(cleaned.clone())), ProductInfo::default());
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let manager = BackendManager::new();
+        let mut backend = manager.get(LOCAL_BACKEND_NAME).await.unwrap();
+        backend.port = listener.local_addr().unwrap().port();
+        // This is an HTTP double, not an owned rclone child. Do not run the
+        // engine's process/port cleanup against the test runner's listener.
+        backend.is_local = false;
+        manager.update(LOCAL_BACKEND_NAME, backend).await.unwrap();
+        app.manage(manager);
+        app.manage(RcloneState::new(
+            crate::rclone::backend::types::rc_client(),
+            Arc::new(RcHttpBackend::new(app.clone())),
+        ));
+        app.manage(AutomationScheduler::new());
+        let mut engine = RcApiEngine::default();
+        engine.mark_running();
+        app.manage(EngineState::new(engine));
+        let updater = crate::utils::types::updater::RcloneUpdaterState::default();
+        // No staged update/filesystem access is part of this regression test.
+        updater.data.lock().state = crate::utils::types::updater::UpdateState::Downloading;
+        app.manage(updater);
+
+        let exiting = app.clone();
+        let shutdown = crate::utils::spawn(async move { super::handle_shutdown(exiting).await });
+        for expected in ["/serve/stopall", "/mount/unmountall"] {
+            let (mut socket, _) =
+                tokio::time::timeout(std::time::Duration::from_secs(2), listener.accept())
+                    .await
+                    .unwrap()
+                    .unwrap();
+            let mut request = Vec::new();
+            while !request.windows(4).any(|bytes| bytes == b"\r\n\r\n") {
+                assert_ne!(socket.read_buf(&mut request).await.unwrap(), 0);
+            }
+            assert!(String::from_utf8_lossy(&request).starts_with(&format!("POST {expected} ")));
+            if expected == "/mount/unmountall" {
+                tokio::time::sleep(std::time::Duration::from_secs(6)).await;
+                assert!(!shutdown.is_finished());
+                assert!(!cleaned.load(Ordering::SeqCst));
+                assert!(!is_shutdown_complete(&app));
+                assert!(
+                    app.state::<EngineState>()
+                        .lock()
+                        .await
+                        .phase
+                        .is_operational()
+                );
+            }
+            socket
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}")
+                .await
+                .unwrap();
+        }
+        tokio::time::timeout(std::time::Duration::from_secs(2), shutdown)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(cleaned.load(Ordering::SeqCst));
+        assert!(is_shutdown_complete(&app));
+        assert!(
+            !app.state::<EngineState>()
+                .lock()
+                .await
+                .phase
+                .is_operational()
+        );
+        // Subsequent exit requests reuse completed cleanup, with no further RPC.
+        super::handle_shutdown(app.clone()).await;
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(50), listener.accept())
+                .await
+                .is_err()
+        );
     }
 }

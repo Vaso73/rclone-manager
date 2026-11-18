@@ -3279,6 +3279,7 @@
       "transportFailed": "無法連線到 rclone：{{error}}"
     },
     "mount": {
+      "shuttingDown": "應用程式正在結束，無法連接磁碟。",
       "pointEmpty": "掛載點不能為空",
       "alreadyInUse": "掛載點 {{mountPoint}} 已被遠端連線 {{remote}} 使用",
       "configIncomplete": "設定檔案 '{{profile}}' 的掛載設定不完整",

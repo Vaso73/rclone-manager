@@ -3279,6 +3279,7 @@
       "transportFailed": "Could not reach rclone: {{error}}"
     },
     "mount": {
+      "shuttingDown": "Cannot connect a disk while the application is shutting down.",
       "pointEmpty": "Mount point cannot be empty",
       "alreadyInUse": "Mount point {{mountPoint}} is already in use by remote {{remote}}",
       "configIncomplete": "Mount configuration incomplete for profile '{{profile}}'",

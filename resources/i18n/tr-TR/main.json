@@ -3279,6 +3279,7 @@
       "transportFailed": "rclone'a ulaşılamadı: {{error}}"
     },
     "mount": {
+      "shuttingDown": "Uygulama kapatılırken disk bağlanamaz.",
       "pointEmpty": "Bağlama noktası boş olamaz",
       "alreadyInUse": "{{mountPoint}} bağlama noktası {{remote}} tarafından zaten kullanılıyor",
       "configIncomplete": "'{{profile}}' profili için bağlama yapılandırması eksik",

@@ -3279,6 +3279,7 @@
       "transportFailed": "Nepodarilo sa spojiť s rclone: {{error}}"
     },
     "mount": {
+      "shuttingDown": "Počas ukončovania aplikácie sa disk nedá pripojiť.",
       "pointEmpty": "Bod pripojenia nemôže byť prázdny",
       "alreadyInUse": "Bod pripojenia {{mountPoint}} už používa vzdialené úložisko {{remote}}",
       "configIncomplete": "Konfigurácia pripojenia pre profil '{{profile}}' je neúplná",

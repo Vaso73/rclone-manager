@@ -3238,6 +3238,7 @@
       "transportFailed": "无法连接到 rclone：{{error}}"
     },
     "mount": {
+      "shuttingDown": "应用程序正在退出，无法连接磁盘。",
       "pointEmpty": "挂载点不能为空",
       "alreadyInUse": "挂载点 {{mountPoint}} 已被远程存储 {{remote}} 使用",
       "configIncomplete": "配置文件 '{{profile}}' 的挂载配置不完整",

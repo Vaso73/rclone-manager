@@ -82,6 +82,12 @@ jobs:
         shell: bash
         run: cargo test --manifest-path backend/Cargo.toml -p rclone-manager-core --features desktop,portable --target x86_64-pc-windows-msvc --lib services::settings::remote::manager -- --test-threads=1
 
+      - name: Test mount shutdown and exit sequencing on Windows
+        shell: bash
+        run: |
+          cargo test --manifest-path backend/Cargo.toml -p rclone-manager-core --features desktop,portable --target x86_64-pc-windows-msvc --lib rclone::commands::mount::tests -- --test-threads=1
+          cargo test --manifest-path backend/Cargo.toml -p rclone-manager-core --features desktop,portable --target x86_64-pc-windows-msvc --lib services::lifecycle::shutdown -- --test-threads=1
+
       - name: Test guarded workspace management on Windows
         shell: bash
         run: |

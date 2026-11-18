@@ -122,6 +122,12 @@ pub async fn mount_remote(app: AppHandle, mut params: MountParams) -> Result<(),
 }
 
 pub(crate) async fn mount_remote_inner(app: AppHandle, params: MountParams) -> Result<(), String> {
+    if app
+        .state::<crate::utils::types::state::RcloneState>()
+        .is_shutting_down()
+    {
+        return Err(crate::localized_error!("backendErrors.mount.shuttingDown"));
+    }
     let backend_manager = app.state::<BackendManager>();
     let backend = match &params.backend {
         Some(backend) => backend.clone(),
@@ -453,7 +459,11 @@ pub(crate) async fn unmount_remote_inner(
     let backend_name_for_err = backend.name.clone();
 
     if let Err(e) = transport
-        .rpc(crate::rclone::endpoints::mount::UNMOUNT, Some(&payload))
+        .rpc_with_timeout(
+            crate::rclone::endpoints::mount::UNMOUNT,
+            Some(&payload),
+            unmount_timeout(1),
+        )
         .await
     {
         let raw_err = e.to_string();
@@ -514,7 +524,23 @@ pub async fn unmount_all_remotes(
     context: OperationContext,
 ) -> Result<String, String> {
     let backend_manager = app.state::<BackendManager>();
-    let backend = backend_manager.get_active().await;
+    // App exit tears down our local engine, irrespective of the selected remote
+    // daemon. Do not unmount another machine merely because its page is selected.
+    let backend = if context.is_shutdown() {
+        backend_manager
+            .get(crate::utils::constants::LOCAL_BACKEND_NAME)
+            .await
+            .ok_or_else(|| {
+                crate::localized_error!(
+                    "backendErrors.backend.notFound",
+                    "name" => crate::utils::constants::LOCAL_BACKEND_NAME
+                )
+            })?
+    } else {
+        backend_manager.get_active().await
+    };
+    let cache = backend_manager.remote_cache_for(&backend.name);
+    let _guard = cache.mount_operations.lock().await;
     #[cfg(target_os = "android")]
     if backend.is_local {
         info!("🗑️ Unmounting all SAF remotes");
@@ -546,8 +572,9 @@ pub async fn unmount_all_remotes(
         let transport = RoutingTransport::for_backend(app.clone(), backend.clone());
         info!("🗑️ Unmounting all remotes");
 
+        let timeout = unmount_timeout(cache.get_mounted_remotes().await.len());
         let _ = transport
-            .rpc(crate::rclone::endpoints::mount::UNMOUNTALL, None)
+            .rpc_with_timeout(crate::rclone::endpoints::mount::UNMOUNTALL, None, timeout)
             .await
             .map_err(|e| {
                 let error_msg =
@@ -573,6 +600,15 @@ pub async fn unmount_all_remotes(
             "backendSuccess.mount.allUnmounted"
         ))
     }
+}
+
+/// rclone releases a batch sequentially. Give each driver teardown time, plus
+/// RPC overhead. An empty or stale cache still gets a bounded grace period.
+fn unmount_timeout(mount_count: usize) -> std::time::Duration {
+    let count = u32::try_from(mount_count.max(1)).unwrap_or(u32::MAX);
+    std::time::Duration::from_secs(15)
+        .saturating_mul(count)
+        .saturating_add(std::time::Duration::from_secs(15))
 }
 
 /// Mount a remote using a named profile
@@ -797,5 +833,193 @@ mod tests {
 
         let config = obj.get("_config").unwrap().as_object().unwrap();
         assert_eq!(config.get("AutoConfirm").unwrap(), &json!(true));
+    }
+
+    #[test]
+    fn unmount_budget_covers_sequential_driver_cleanup() {
+        use std::time::Duration;
+        assert_eq!(unmount_timeout(0), Duration::from_secs(30));
+        assert_eq!(unmount_timeout(1), Duration::from_secs(30));
+        assert_eq!(unmount_timeout(3), Duration::from_secs(60));
+        assert_eq!(unmount_timeout(26), Duration::from_secs(405));
+        assert!(unmount_timeout(usize::MAX) >= unmount_timeout(26));
+    }
+
+    fn app_with_daemon(port: u16) -> AppHandle {
+        use crate::rclone::backend::http_transport::RcHttpBackend;
+        use crate::utils::types::state::RcloneState;
+        let app = AppHandle::default();
+        app.manage(BackendManager::new());
+        app.manage(RcloneState::new(
+            crate::rclone::backend::types::rc_client(),
+            std::sync::Arc::new(RcHttpBackend::new(app.clone())),
+        ));
+        // Updating the port is async, so the callers set it before issuing RPCs.
+        assert_ne!(port, 0);
+        app
+    }
+
+    #[cfg(not(feature = "librclone"))]
+    async fn pin_local_port(app: &AppHandle, port: u16) {
+        let manager = app.state::<BackendManager>();
+        let mut backend = manager
+            .get(crate::utils::constants::LOCAL_BACKEND_NAME)
+            .await
+            .unwrap();
+        backend.port = port;
+        manager
+            .update(&backend.name.clone(), backend)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn shutdown_rejects_new_mounts_before_any_backend_access() {
+        let app = app_with_daemon(1);
+        app.state::<crate::utils::types::state::RcloneState>()
+            .set_shutting_down();
+        let params = MountParams::from_config(
+            "drive".into(),
+            &json!({"fs": "drive:", "mountPoint": "Z:"}),
+            &json!({}),
+        )
+        .unwrap();
+        let error = mount_remote(app, params).await.unwrap_err();
+        assert!(error.contains("backendErrors.mount.shuttingDown"));
+    }
+
+    #[cfg(not(feature = "librclone"))]
+    #[tokio::test]
+    async fn shutdown_batch_waits_for_inflight_operation_and_slow_driver() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let app = app_with_daemon(listener.local_addr().unwrap().port());
+        pin_local_port(&app, listener.local_addr().unwrap().port()).await;
+        let cache = app
+            .state::<BackendManager>()
+            .remote_cache_for(crate::utils::constants::LOCAL_BACKEND_NAME);
+        let operation = cache.mount_operations.lock().await;
+        let batch_app = app.clone();
+        let batch = crate::utils::spawn(async move {
+            unmount_all_remotes(batch_app, OperationContext::Shutdown).await
+        });
+        // A quit request must not send unmount-all over an individual operation.
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(80), listener.accept())
+                .await
+                .is_err()
+        );
+        drop(operation);
+        let (mut socket, _) =
+            tokio::time::timeout(std::time::Duration::from_secs(2), listener.accept())
+                .await
+                .unwrap()
+                .unwrap();
+        let mut request = Vec::new();
+        while !request.windows(4).any(|bytes| bytes == b"\r\n\r\n") {
+            assert_ne!(socket.read_buf(&mut request).await.unwrap(), 0);
+        }
+        assert!(String::from_utf8_lossy(&request).starts_with("POST /mount/unmountall "));
+        // This exceeded the old application-wide five-second unmount budget.
+        tokio::time::sleep(std::time::Duration::from_secs(6)).await;
+        assert!(!batch.is_finished());
+        socket
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}")
+            .await
+            .unwrap();
+        assert!(batch.await.unwrap().is_ok());
+        assert!(cache.mount_operations.try_lock().is_ok());
+    }
+
+    #[cfg(not(feature = "librclone"))]
+    #[tokio::test]
+    async fn failed_shutdown_unmount_is_not_reported_as_success_and_unlocks() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let app = app_with_daemon(listener.local_addr().unwrap().port());
+        pin_local_port(&app, listener.local_addr().unwrap().port()).await;
+        let server = crate::utils::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = Vec::new();
+            while !request.windows(4).any(|bytes| bytes == b"\r\n\r\n") {
+                assert_ne!(socket.read_buf(&mut request).await.unwrap(), 0);
+            }
+            socket.write_all(b"HTTP/1.1 500 Internal Server Error\r\nContent-Length: 28\r\nConnection: close\r\n\r\n{\"error\":\"unmount rejected\"}").await.unwrap();
+        });
+        let error = unmount_all_remotes(app.clone(), OperationContext::Shutdown)
+            .await
+            .unwrap_err();
+        assert!(error.contains("unmount rejected"));
+        server.await.unwrap();
+        assert!(
+            app.state::<BackendManager>()
+                .remote_cache_for(crate::utils::constants::LOCAL_BACKEND_NAME)
+                .mount_operations
+                .try_lock()
+                .is_ok()
+        );
+    }
+
+    #[cfg(not(feature = "librclone"))]
+    #[tokio::test]
+    async fn shutdown_unmounts_local_engine_while_another_daemon_is_selected() {
+        use crate::rclone::backend::CopySources;
+        use crate::utils::constants::ENGINE_SUB_SETTINGS;
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let local = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let remote = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let app = app_with_daemon(local.local_addr().unwrap().port());
+        pin_local_port(&app, local.local_addr().unwrap().port()).await;
+        let directory = tempfile::tempdir().unwrap();
+        let mut builder = rcman::SettingsManager::builder("unmount-owner-test", "1.0.0")
+            .with_config_dir(directory.path())
+            .with_schema::<crate::services::settings::schema::AppSettings>();
+        for name in ENGINE_SUB_SETTINGS {
+            builder = builder
+                .with_sub_settings(rcman::SubSettingsConfig::singlefile(name).with_profiles());
+        }
+        let settings = builder.build().unwrap();
+        let manager = app.state::<BackendManager>();
+        manager
+            .add(
+                &settings,
+                Backend::new_remote(
+                    "other-daemon",
+                    "127.0.0.1",
+                    remote.local_addr().unwrap().port(),
+                ),
+                CopySources::default(),
+            )
+            .await
+            .unwrap();
+        manager.switch_to(&settings, "other-daemon").await.unwrap();
+        let server = crate::utils::spawn(async move {
+            let (mut socket, _) =
+                tokio::time::timeout(std::time::Duration::from_secs(2), local.accept())
+                    .await
+                    .unwrap()
+                    .unwrap();
+            let mut request = Vec::new();
+            while !request.windows(4).any(|bytes| bytes == b"\r\n\r\n") {
+                assert_ne!(socket.read_buf(&mut request).await.unwrap(), 0);
+            }
+            assert!(String::from_utf8_lossy(&request).starts_with("POST /mount/unmountall "));
+            socket
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}")
+                .await
+                .unwrap();
+        });
+        assert!(
+            unmount_all_remotes(app, OperationContext::Shutdown)
+                .await
+                .is_ok()
+        );
+        server.await.unwrap();
+        assert_eq!(manager.get_active_name().await, "other-daemon");
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(50), remote.accept())
+                .await
+                .is_err()
+        );
     }
 }

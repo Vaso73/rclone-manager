@@ -3238,6 +3238,7 @@
       "transportFailed": "rclone に接続できませんでした: {{error}}"
     },
     "mount": {
+      "shuttingDown": "アプリケーションの終了中はディスクを接続できません。",
       "pointEmpty": "マウントポイントを空欄にすることはできません",
       "alreadyInUse": "マウントポイント {{mountPoint}} はリモート {{remote}} で既に使用されています",
       "configIncomplete": "プロファイル 「{{profile}}」 のマウント設定が不完全です",

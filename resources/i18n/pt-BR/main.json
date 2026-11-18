@@ -3238,6 +3238,7 @@
       "transportFailed": "Não foi possível acessar o rclone: {{error}}"
     },
     "mount": {
+      "shuttingDown": "Não é possível conectar um disco enquanto o aplicativo está sendo encerrado.",
       "pointEmpty": "Ponto de montagem não pode estar vazio",
       "alreadyInUse": "O ponto de montagem {{mountPoint}} já está em uso pelo remoto {{remote}}.",
       "configIncomplete": "Configuração de montagem incompleta para o perfil '{{profile}}'",
