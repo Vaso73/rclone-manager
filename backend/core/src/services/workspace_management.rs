@@ -41,14 +41,18 @@ fn failed() -> String {
 fn references(value: &Value, name: &str) -> bool {
     match value {
         Value::String(text) => {
-            let prefix = format!("{name}:");
+            // Named connection strings may insert options before the colon. Inline
+            // aliases can in turn contain a named remote immediately after '='.
+            let prefixes = [format!("{name}:"), format!("{name},")];
             text == name
-                || text.match_indices(&prefix).any(|(at, _)| {
-                    at == 0
-                        || text[..at]
-                            .chars()
-                            .last()
-                            .is_some_and(|c| c.is_whitespace() || matches!(c, '\'' | '"'))
+                || prefixes.iter().any(|prefix| {
+                    text.match_indices(prefix.as_str()).any(|(at, _)| {
+                        (at == 0
+                            || text[..at].chars().last().is_some_and(|c| {
+                                c.is_whitespace() || matches!(c, '\'' | '"' | '=')
+                            }))
+                            && (prefix.ends_with(':') || text[at + prefix.len()..].contains(':'))
+                    })
                 })
         }
         Value::Array(values) => values.iter().any(|value| references(value, name)),
@@ -274,6 +278,28 @@ mod tests {
             &json!("NAS:folder \"One Drive:folder\""),
             "One Drive"
         ));
+    }
+    #[test]
+    fn named_connection_options_and_inline_aliases_are_dependencies() {
+        assert!(references(&json!("NAS,copy_links=true:folder"), "NAS"));
+        assert!(references(&json!(":alias,remote=NAS:folder:"), "NAS"));
+        assert!(references(
+            &json!("OTHER:folder \"One Drive,read_only=true:photos\""),
+            "One Drive"
+        ));
+        assert!(!references(&json!("NAS2,copy_links=true:folder"), "NAS"));
+        assert!(!references(
+            &json!("NAS, ordinary text without a path"),
+            "NAS"
+        ));
+        let review = dependency_review(
+            "NAS",
+            &json!({"Alias":{"type":"alias","remote":"NAS,copy_links=true:folder"}}),
+            &json!({}),
+            &json!([]),
+        );
+        assert_eq!(review.dependencies.len(), 1);
+        assert_eq!(review.dependencies[0].name, "Alias");
     }
     #[test]
     fn profiles_are_checked_across_owners_and_operations() {
